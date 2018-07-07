@@ -1,10 +1,12 @@
 module Tabelle exposing (..)
 
-import Element exposing (Attribute,Element)
-import Element.Attributes exposing (px)
+import Element exposing (..)
+import Element.Attributes exposing (..)
 import Stil
 
-reihe sizes columns =
+reihe attrs = reiheHeight attrs (Stil.scale 2)
+
+reiheHeight attrs height sizes columns =
   let
     addColNumber = List.indexedMap (,)
     indexedList = addColNumber columns
@@ -16,9 +18,9 @@ reihe sizes columns =
          , content = content
          }
   in
-    Element.grid Stil.Neutral []
+    Element.grid Stil.Neutral attrs
       { columns = List.map px sizes
-      , rows    = [ px (Stil.scale 2) ]
+      , rows    = [ px height ]
       , cells   = List.map indexedToCell indexedList
       }
 

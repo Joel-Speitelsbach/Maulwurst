@@ -11,7 +11,7 @@ import Style.Font as Font
 import Date exposing (Date)
 import Stil exposing (Stil)
 import Types exposing (..)
-import Tabelle exposing (tableTransposed)
+import Tabelle as Tab exposing (tableTransposed)
 import Html exposing (Html)
 import Time exposing (minute)
 import WebSocket
@@ -372,8 +372,10 @@ viewÜbersicht model =
 
 tabelleÜbersicht : Model -> Elem var
 tabelleÜbersicht model =
-  tableTransposed Stil.Neutral [spacing 10] [] 20 [70, 120, 200,200,120] <|
+  column Stil.Neutral [spacing 10] <|
     let
+      space = spacing 10
+      columnSizes = [70, 120, 200,200,120]
       sortButton sortby txt =
         let
           arrow =
@@ -382,30 +384,34 @@ tabelleÜbersicht model =
               else ""
         in button Stil.SortButton [center, onClick (ChangeSort sortby)] (text (txt ++ arrow))
     in
-      [ empty
-      , sortButton Kunde "Kunde"
-      , sortButton Bestelldatum "Bestelldatum"
-      , sortButton Lieferdatum "Lieferdatum"
-      , sortButton SortStatus "Status"
-      ]
-      :: List.map lieferungReihe (sortiere model.sortby.vorwärts model.sortby.kategorie model.lieferungen)
+      Tab.reihe [space] columnSizes
+        [ empty
+        , sortButton Kunde "Kunde"
+        , sortButton Bestelldatum "Bestelldatum"
+        , sortButton Lieferdatum "Lieferdatum"
+        , sortButton SortStatus "Status"
+        ]
+      :: (List.map (lieferungReihe space columnSizes) <|
+            sortiere model.sortby.vorwärts model.sortby.kategorie model.lieferungen
+         )
 
-lieferungReihe : Lieferung -> List (Element Stil variation Msg)
-lieferungReihe lieferung =
+lieferungReihe space columnSizes lieferung =
   let
-    viewBut = button Stil.Button [onClick (Goto (Details lieferung.id))] (text "Zeige Details")
+    löschSizes = [List.head columnSizes |> Maybe.withDefault 50]
     viewStatus =
       let status = lieferStatus lieferung
       in el (Stil.Stat status) [] <| text <| toString status
   in
-    [ el Stil.Neutral [] <|
-        button Stil.LöschButton [onClick (LöscheLieferung lieferung)] (text "Löschen")
-    , text (lieferung.kundenname)
-    , text (viewDate lieferung.bestelldatum)
-    , text lieferung.lieferdatum
-    , viewStatus
-    , viewBut
-    ]
+    row Stil.Neutral [space] <|
+      [ Tab.reihe [] löschSizes
+          [button Stil.LöschButton [onClick (LöscheLieferung lieferung)] (text "Löschen")]
+      , button Stil.Button [onClick (Goto (Details lieferung.id))] <| Tab.reihe [space] (List.drop 1 columnSizes)
+          [ text (lieferung.kundenname)
+          , text (viewDate lieferung.bestelldatum)
+          , text lieferung.lieferdatum
+          , viewStatus
+          ]
+      ]
 
 sortiere : Bool -> Sortby -> List Lieferung -> List Lieferung
 sortiere vorwärts sortby lieferungen =
