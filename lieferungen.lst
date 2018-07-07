@@ -1,0 +1,3 @@
+{"_bestelldatum":1.530866577545e12,"_lieferdatum":"Immer","_kundenname":"Eselmeister","_lid":3,"_bestellungen":[{"_plu":"","_artikelbezeichnung":"","_menge":"","_status":"InBearbeitung","_freitext":"","_bid":3}]}
+{"_bestelldatum":1.530866119522e12,"_lieferdatum":"Heute","_kundenname":"Rumpenstiel","_lid":2,"_bestellungen":[{"_plu":"","_artikelbezeichnung":"Wurst","_menge":"","_status":"Fertig","_freitext":"","_bid":2}]}
+{"_bestelldatum":1.53086609351e12,"_lieferdatum":"Morgen","_kundenname":"Adolf","_lid":1,"_bestellungen":[{"_plu":"","_artikelbezeichnung":"","_menge":"","_status":"Neu","_freitext":"Das ist die erste Lieferung","_bid":1}]}

@@ -1,0 +1,3 @@
+
+scp backend.hs makefile otto@37.221.194.181:/home/otto/Server
+scp frontend/index.html otto@37.221.194.181:/home/otto/Server/frontend
