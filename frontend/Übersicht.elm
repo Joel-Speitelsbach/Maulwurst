@@ -33,7 +33,7 @@ init =
       { kategorie = Bestelldatum
       , vorwärts = True
       }
-  , testmsg = "oiaeo"
+  , testmsg = "oiaeg"
   }
 
 type Prog

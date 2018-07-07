@@ -1,7 +1,26 @@
-module Tabelle exposing (tableTransposed)
+module Tabelle exposing (..)
 
 import Element exposing (Attribute,Element)
 import Element.Attributes exposing (px)
+import Stil
+
+reihe sizes columns =
+  let
+    addColNumber = List.indexedMap (,)
+    indexedList = addColNumber columns
+    indexedToCell (colNum,content) =
+      Element.cell
+         { start = ( colNum, 0 )
+         , width = 1
+         , height = 1
+         , content = content
+         }
+  in
+    Element.grid Stil.Neutral []
+      { columns = List.map px sizes
+      , rows    = [ px (Stil.scale 2) ]
+      , cells   = List.map indexedToCell indexedList
+      }
 
 tableTransposed
          : style
@@ -11,7 +30,7 @@ tableTransposed
         -> List Float
         -> List (List (Element style variation msg))
         -> Element style variation msg
-tableTransposed style attrs initRows rowSize columns matrix =
+tableTransposed style attrs initRows rowSize columnSizes matrix =
   let
     height = List.length matrix
     width  = List.length <| List.foldr pickMaxLen [] matrix
@@ -30,7 +49,7 @@ tableTransposed style attrs initRows rowSize columns matrix =
     rows = initRows ++ List.repeat (height - List.length initRows) rowSize
   in
     Element.grid style attrs
-      { columns = List.map px columns
+      { columns = List.map px columnSizes
       , rows    = List.map px rows
       , cells   = List.map indexedToCell indexedList
       }
