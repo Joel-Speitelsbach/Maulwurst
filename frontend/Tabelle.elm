@@ -2,11 +2,12 @@ module Tabelle exposing (..)
 
 import Element exposing (..)
 import Element.Attributes exposing (..)
-import Stil
+import Stil exposing (pxx)
 
-reihe attrs = reiheHeight attrs (Stil.scale 2)
+reihe attrs = reiheHeight attrs 25.888
+reiheHeight = reiheStil Stil.Neutral
 
-reiheHeight attrs height sizes columns =
+reiheStil stil attrs height sizes columns =
   let
     addColNumber = List.indexedMap (,)
     indexedList = addColNumber columns
@@ -18,9 +19,9 @@ reiheHeight attrs height sizes columns =
          , content = content
          }
   in
-    Element.grid Stil.Neutral attrs
-      { columns = List.map px sizes
-      , rows    = [ px height ]
+    Element.grid stil attrs
+      { columns = List.map pxx sizes
+      , rows    = [ pxx height ]
       , cells   = List.map indexedToCell indexedList
       }
 
@@ -51,12 +52,7 @@ tableTransposed style attrs initRows rowSize columnSizes matrix =
     rows = initRows ++ List.repeat (height - List.length initRows) rowSize
   in
     Element.grid style attrs
-      { columns = List.map px columnSizes
-      , rows    = List.map px rows
+      { columns = List.map pxx columnSizes
+      , rows    = List.map pxx rows
       , cells   = List.map indexedToCell indexedList
       }
-
---abstellgleis
--- someLine = case matrix of
--- fstLine :: _ -> fstLine
--- []           -> []

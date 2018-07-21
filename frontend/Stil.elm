@@ -1,12 +1,13 @@
 module Stil exposing (..)
 
+import Element.Attributes as Attr
 import Style
 import Style.Color as Color
 import Style.Scale as Scale
 import Style.Font as Font
 import Style.Border as Border
 import Color exposing (..)
-import Types exposing (Status(Neu,InBearbeitung,Fertig))
+import Types exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 
 type Stil
   = Big
@@ -16,36 +17,74 @@ type Stil
   | TableElement
   | NiceBackground
   | Button
+  | ButtonSmall
   | SortButton
+  | HiddenButton
   | TextField
+  | TextFeld Bool
   | LöschButton
-  | Stat Status
+  | Stat (Maybe Status)
+  | TabelleSpaltenName
+  | Btyp Bestelltyp
+  | WithBorder
 
-scale =
-  Scale.modular 16 1.618
+spacin = Attr.spacing << vergr
+pading = Attr.padding << vergr
+pxx    = Attr.px      << vergr
+
+vergr i = i * scale 1 / 16
+
+scale i =
+  19 * 1.618 ^ (i-1)
 
 stylesheet =
   Style.styleSheet
-    [ Style.style Neutral        []
+    [ Style.style Neutral        [small]
     , Style.style Small          [small]
     , Style.style Medium         [medium]
     , Style.style Big            [big]
     , Style.style NiceBackground [Color.background yellow]
     , Style.style TableElement   [small]
+    , Style.style TabelleSpaltenName [small, Font.center ]
     , Style.style TextField
         [ border
         , Color.background (grayscale 0.8)
         , Color.text       white
+        , small
+        ]
+    , Style.style (TextFeld True)
+        [ border
+        , Color.background (grayscale 0.8)
+        , Color.text       white
+        , small
+        ]
+    , Style.style (TextFeld False)
+        [ border
+        , Color.background lightRed
+        , Color.text       black
+        , small
         ]
     , Style.style Button
-        [ Style.hover [Color.background lightPurple]
+        [ Style.hover [Color.background hoverColor]
         , Color.background lightBlue
+        , Color.text black
+        , Font.size (scale 1.5)
+        ]
+    , Style.style ButtonSmall
+        [ Style.hover [Color.background hoverColor]
+        , Color.background lightBlue
+        , Color.text black
+        , small
+        ]
+    , Style.style HiddenButton
+        [ Style.hover [Color.background hoverColor]
+        , Color.background white
         , Color.text black
         , Font.size (scale 1)
         ]
     , Style.style SortButton
-        [ Style.hover [Color.background lightYellow ]
-        , Color.background lightYellow
+        [ Style.hover [Color.background hoverColor ]
+        , Color.background lightBlue
         , Color.text black
         , Font.size (scale 1)
         ]
@@ -54,14 +93,48 @@ stylesheet =
         , Color.background lightRed
         , Color.text black
         , Font.size (scale 1)
+        , Border.rounded (scale 0)
         ]
-    , Style.style (Stat Neu) [Color.background lightBrown]
-    , Style.style (Stat InBearbeitung) [Color.background lightYellow]
-    , Style.style (Stat Fertig) [Color.background lightGreen]
+    , Style.style (Stat <| Just Neu)
+        [ Color.background grey
+        ]
+    , Style.style (Stat <| Just InBearbeitung)
+        [ Color.background lightYellow
+        ]
+    , Style.style (Stat <| Just Fertig)
+        [ Color.background lightGreen
+        ]
+    , Style.style (Stat Nothing)
+        papierkorb
+    , Style.style (Btyp Merchingen)
+        [ Color.background lightBrown
+        ]
+    , Style.style (Btyp Adelsheim)
+        [ Color.background (rgb 230 160 160)
+        ]
+    , Style.style (Btyp Partyservice)
+        [ Color.background lightPurple
+        ]
+    , Style.style WithBorder
+        [ border
+        ]
     ]
+
+papierkorb =
+  [ Style.hover [Color.background grey]
+  , Color.text black
+  , Color.background white
+  , Border.rounded 20
+  , Border.left 1, Border.right 1, Border.bottom 1
+  ]
+
+hoverColor = rgb 170 170 210
+featherBlue = rgb 170 170 250
 
 small  = Font.size (scale 1)
 medium = Font.size (scale 2)
 big    = Font.size (scale 3)
 
 border = Border.all 1
+
+-- partyservice =

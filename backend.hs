@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell,OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell,OverloadedStrings,ScopedTypeVariables #-}
 
 -- connection imports
 import Network.WebSockets as Websocket
@@ -27,17 +27,26 @@ import qualified Data.Maybe as M
 import Data.Function ((&))
 import Data.List (partition)
 import Control.Lens hiding ((.=))
-import Data.Maybe (listToMaybe,isNothing)
+import Data.Maybe (listToMaybe,isNothing,catMaybes)
 import qualified Data.Char as Char
 import System.AtomicWrite.Writer.LazyByteString (atomicWriteFile)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Debug
+import Debug (trace)
+import Data.Monoid
+import Foreign.C.Types as CTypes
+import Misc (whenJust,doNothing)
+import qualified Data.UnixTime as UnixTime
 
 data Lieferung = Lieferung
-  { _bestelldatum :: Double
-  , _lieferdatum  :: String
-  , _kundenname   :: String
-  , _lid          :: Int
-  , _bestellungen :: [Bestellung]
+  { _bestelldatum     :: Double
+  , _lieferdatum      :: String
+  , _kundenname       :: String
+  , _bestelltyp       :: Bestelltyp
+  , _partyserviceData :: PartyserviceData
+  , _inPapierkorb     :: Maybe Double
+  , _lid              :: Int
+  , _bestellungen     :: [Bestellung]
   } deriving (Show, Eq)
 
 data Bestellung = Bestellung
@@ -49,31 +58,68 @@ data Bestellung = Bestellung
   , _bid                :: Int
   } deriving (Show, Eq)
 
+data Bestelltyp
+  = Adelsheim
+  | Merchingen
+  | Partyservice
+  deriving (Show, Eq)
+
+data PartyserviceData = PartyserviceData
+  { _adresse           :: String
+  , _telefon           :: String
+  , _veranstaltungsort :: String
+  , _personenanzahl    :: String
+  } deriving (Show, Eq)
+
 $(Ath.deriveJSON Ath.defaultOptions ''Lieferung)
 $(Ath.deriveJSON Ath.defaultOptions ''Bestellung)
+$(Ath.deriveJSON Ath.defaultOptions ''Bestelltyp)
+$(Ath.deriveJSON Ath.defaultOptions ''PartyserviceData)
 makeLenses ''Lieferung
 makeLenses ''Bestellung
+
+emptyBestellung :: Bestellung -> Bool
+emptyBestellung bestellung =
+  and $ map ( (== "") . ($ bestellung) )
+    [ _plu
+    , _artikelbezeichnung
+    , _menge
+    , _freitext
+    ]
+
+cleanUpLieferung :: Lieferung -> (Lieferung, [B.ByteString])
+cleanUpLieferung lieferung =
+  ( over bestellungen (filter $ not . emptyBestellung) lieferung
+  , catMaybes $
+      flip map (_bestellungen lieferung) $ \bestellung ->
+        if emptyBestellung bestellung
+        then Just $ löscheBestellungMsg (_lid lieferung) (_bid bestellung)
+        else Nothing
+  )
+
 
 ---------------------------------------------------------------
 --------------- sending stuff -------------------------------
 
-changeLieferung :: TVar [Lieferung] -> Lieferung -> STM B.ByteString
+changeLieferung :: TVar [Lieferung] -> Lieferung -> STM [B.ByteString]
 changeLieferung lieferungenT lieferung =
   do
     lieferungen <- readTVar lieferungenT
     let
+      (lieferungCleaned,deleteMsgs) = cleanUpLieferung lieferung
       veränderteLieferungen =
-        lieferung : filter ((_lid lieferung /=) . _lid) lieferungen
+        lieferungCleaned : filter ((_lid lieferungCleaned /=) . _lid) lieferungen
     writeTVar lieferungenT veränderteLieferungen
-    return $ A.encode lieferung
+    return $ deleteMsgs ++ [A.encode lieferungCleaned]
 
 fügeNeueLieferungHinzu :: TVar [Lieferung] -> Double -> STM (B.ByteString, Int)
-fügeNeueLieferungHinzu lieferungenT time =
+fügeNeueLieferungHinzu lieferungenT millisecs =
   do
     lieferungen <- readTVar lieferungenT
     let
       newID = (+1) $ maximum $ (0:) $ map _lid lieferungen
-      neueLieferung = Lieferung time "" "" newID []
+      pdata = PartyserviceData "" "" "" ""
+      neueLieferung = Lieferung millisecs "" "" Merchingen pdata Nothing newID []
     writeTVar lieferungenT (neueLieferung : lieferungen)
     return $ (A.encode neueLieferung, newID)
 
@@ -138,11 +184,11 @@ initMsgsT lieferungenT = do
 
 data Recieving
   = UpdateLieferung Lieferung
-  | LöscheLieferung Int
+  | PapierkorbLieferung Int Bool
   | LöscheBestellung Int Int
-  | NeueLieferung Double
+  | NeueLieferung
   | NeueBestellung Int
-  | MalformedMsg
+  | MalformedMsg B.ByteString
   deriving (Show)
 
 reactRecieving
@@ -150,52 +196,65 @@ reactRecieving
   -> B.ByteString -> Websocket.Connection -> IO ()
 reactRecieving lieferungenT broadcastChannel client msg connection =
   case decodeRecieving msg of
-    NeueLieferung datum -> do
-      (msg,lid) <- atomically $ fügeNeueLieferungHinzu lieferungenT datum
-      atomically $ writeTChan broadcastChannel (msg, client)
-      Websocket.sendTextData connection msg
+    NeueLieferung -> do
+      millisecs <- getEpochMillisecs
+      (msg,lid) <- atomically $ do
+        (msg,lid) <- fügeNeueLieferungHinzu lieferungenT millisecs
+        writeTChan broadcastChannel (msg, client)
+        return (msg,lid)
       Websocket.sendTextData connection (zeigeNeueLieferungMsg lid)
-    UpdateLieferung lieferung -> do
-      msg <- atomically $ changeLieferung lieferungenT lieferung
-      -- B.putStrLn $ "update lieferung with " `B.append` msg
-      atomically $ writeTChan broadcastChannel (msg, 0)
-    LöscheLieferung lid_del -> do
+    UpdateLieferung lieferung -> atomically $ do
+        msgs <- changeLieferung lieferungenT lieferung
+        forM_ msgs $ \msg ->
+          writeTChan broadcastChannel (msg, 0)
+    PapierkorbLieferung lid_pap bool -> do
+      pap <- do
+        if bool
+          then Just <$> getEpochMillisecs
+          else return Nothing
       atomically $ do
-        lieferungen <- readTVar lieferungenT
-        let verändert = filter ((lid_del /=) . _lid) lieferungen
-        writeTVar lieferungenT verändert
-      let msg = löscheLieferungMsg lid_del
-      atomically $ writeTChan broadcastChannel (msg, 0)
-    LöscheBestellung lid_del bid_del -> do
-      atomically $ do
-        lieferungen <- readTVar lieferungenT
-        let überLieferung =
-              over bestellungen $ filter $ (bid_del /=) . _bid
-            verändert = map überLieferung lieferungen
-        writeTVar lieferungenT verändert
-      let msg = löscheBestellungMsg lid_del bid_del
-      atomically $ writeTChan broadcastChannel (msg, 0)
-    NeueBestellung lid -> do
-      maybeMsg <- atomically $ fügeNeueBestellungHinzu lieferungenT lid
+        lieferungen <-readTVar lieferungenT
+        let maybeLieferung = do
+              l <- listToMaybe $ filter (\l -> _lid l == lid_pap) lieferungen
+              return $ l { _inPapierkorb = pap}
+        whenJust maybeLieferung $ \lieferung -> do
+          msgs <- changeLieferung lieferungenT lieferung
+          forM_ msgs $ \msg ->
+            writeTChan broadcastChannel (msg, 0)
+    LöscheBestellung lid_del bid_del -> atomically $ do
+      let überLieferung =
+            over bestellungen $ filter $ (bid_del /=) . _bid
+          msg = löscheBestellungMsg lid_del bid_del
+      modifyTVar lieferungenT $ map überLieferung
+      writeTChan broadcastChannel (msg, 0)
+    NeueBestellung lid -> atomically $ do
+      maybeMsg <- fügeNeueBestellungHinzu lieferungenT lid
       case maybeMsg of
-        Just msg -> atomically $ writeTChan broadcastChannel (msg, 0)
+        Just msg -> writeTChan broadcastChannel (msg, 0)
         Nothing -> return ()
-    _ -> return ()
+    MalformedMsg msg -> do
+      B.putStrLn $ "recieving malformed msg: " <> msg
+
+getEpochMillisecs :: IO Double
+getEpochMillisecs = do
+  now <- UnixTime.getUnixTime
+  let CTypes.CTime seconds = UnixTime.toEpochTime now
+  return $ fromIntegral $ seconds * 1000
 
 type Decoder a = A.Object -> At.Parser a
 
 decodeRecieving :: B.ByteString -> Recieving
 decodeRecieving msg =
-  maybe MalformedMsg id $
+  maybe (MalformedMsg msg) id $
     M.listToMaybe . M.catMaybes . maybe [] id $ do
       obj <- A.decode msg
       return $
         map (flip At.parseMaybe obj)
           [ decodeUpdateLieferung
           , decodeLöscheBestellung
-          , decodeNeueLieferung
-          , decodeLöscheLieferung
+          , decodePapierkorbLieferung
           , decodeNeueBestellung
+          , decodeNeueLieferung
           ]
 
 decodeUpdateLieferung :: Decoder Recieving
@@ -211,11 +270,12 @@ decodeLöscheBestellung obj =
     lid <- obj .: "Lieferung"
     return $ LöscheBestellung lid bid
 
-decodeLöscheLieferung :: Decoder Recieving
-decodeLöscheLieferung obj =
+decodePapierkorbLieferung :: Decoder Recieving
+decodePapierkorbLieferung obj =
   do
-    lid <- obj .: "LöscheLieferung"
-    return $ LöscheLieferung lid
+    bool <- obj .: "PapierkorbLieferung"
+    lid  <- obj .: "Lieferung"
+    return $ PapierkorbLieferung lid bool
 
 decodeNeueBestellung :: Decoder Recieving
 decodeNeueBestellung obj =
@@ -226,12 +286,8 @@ decodeNeueBestellung obj =
 decodeNeueLieferung :: Decoder Recieving
 decodeNeueLieferung obj =
   do
-    time <- obj .: "NeueLieferung"
-    -- let datum = vorne
-    --     (hintenR,vorneR) = span (/= ':') (reverse dat)
-    --     schwanz = take 2 $ reverse hintenR
-    --     vorne = drop 4 $ reverse $ drop 1 vorneR
-    return $ NeueLieferung time
+    (_ :: String) <- obj .: "NeueLieferung"
+    return $ NeueLieferung
 
 
 --------------------------------------------------------------------------------------
@@ -241,20 +297,15 @@ delay = threadDelay (1000 * 1000)
 
 sending lieferungenT fromBroadcast client connection =
   forever $ do
-    -- delay
     (msg, broadcastingClient) <- atomically $ readTChan fromBroadcast
-    when (client /= broadcastingClient) $ do
-      Websocket.sendTextData connection msg
-      -- B.putStrLn $ "sending " `B.append` msg
+    Websocket.sendTextData connection msg
 
 recieving lieferungenT broadcastChannel client connection = forever $ do
-  -- threadDelay (100 * 1000)
   msg <- Websocket.receiveData connection
   reactRecieving lieferungenT broadcastChannel client msg connection
-  -- B.putStrLn $ "recieving msg: " `B.append` msg
 
 wsApp lieferungenT broadcastChannel clientT pendingConnection = do
-  putStrLn "newConnection"
+  Debug.logNewConnection
   connection <- acceptRequest pendingConnection
   (fromBroadcast, initMsgs) <- atomically $
      (,) <$> dupTChan broadcastChannel
@@ -267,11 +318,11 @@ wsApp lieferungenT broadcastChannel clientT pendingConnection = do
   forkIO $ recieving lieferungenT broadcastChannel client connection
   sending lieferungenT fromBroadcast client connection
 
--- waiApp :: Application
-waiApp wsApp = WaiWebsocket.websocketsOr defaultConnectionOptions wsApp backupApp
-  where
-    backupApp :: Application
-    backupApp _ respond = respond sendIndex
+-- waiApp :: .. -> Application
+waiApp wsApp = WaiWebsocket.websocketsOr defaultConnectionOptions wsApp sendHtmlApp
+
+sendHtmlApp :: Application
+sendHtmlApp _ respond = respond sendIndex
 
 sendIndex :: Wai.Response
 sendIndex = responseFile
@@ -299,10 +350,9 @@ speichereLieferungenPeriodisch lieferungenT =
         lief <- readTVar lieferungenT
         letzteLief <- swapTVar letzteLiefT lief
         STM.check $ lief /= letzteLief
-        -- STM.check =<< swapTVar needToSaveT False
         return lief
       speichereLieferungen lieferungen
-      -- putStrLn "data saved"
+      putStrLn "data saved"
       threadDelay (1000 * 1000)
 
 speichereLieferungen :: [Lieferung] -> IO ()
@@ -328,17 +378,17 @@ lagerpfad = "lieferungen.lst"
 -------------------- main ----------------------
 
 main = do
-  forkIO $ do
-    mayLief <- öffneLieferungen
-    flip (maybe (return ())) mayLief $ \lief -> do
-      lieferungenT <- newTVarIO lief
-      clientT      <- newTVarIO (1 :: Int)
-      broadcastChannel <- newBroadcastTChanIO
-      -- forkIO $ Websocket.runServer
-      --   "localhost"
-      --   3000
-      speichereLieferungenPeriodisch lieferungenT
-      Warp.run 3000 $
-        waiApp (wsApp lieferungenT broadcastChannel clientT)
-  void $ getLine
-  Exit.exitSuccess
+  mayLief <- öffneLieferungen
+  flip (maybe $ Exit.exitFailure) mayLief $ \lief -> do
+    void . forkIO $ do
+        lieferungenT <- newTVarIO lief
+        clientT      <- newTVarIO (1 :: Int)
+        broadcastChannel <- newBroadcastTChanIO
+        speichereLieferungenPeriodisch lieferungenT
+        forkIO $ Websocket.runServer
+          "192.168.178.45"
+          18539
+          (wsApp lieferungenT broadcastChannel clientT)
+        Warp.run 3000 sendHtmlApp
+    void $ getLine
+    Exit.exitSuccess

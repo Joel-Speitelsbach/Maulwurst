@@ -5,8 +5,7 @@ import Types exposing (..)
 import Date exposing (Date)
 
 type ServerMsg
-  = TestMsg String
-  | ServerLöscheBestellung Int Int
+  = ServerLöscheBestellung Int Int
   | ServerLöscheLieferung Int
   | ServerChangeLieferung Lieferung
   | ServerZeigeNeueLieferung Int
@@ -24,8 +23,7 @@ parseServerMsg msg =
 decodeServerMsg : Json.Decoder ServerMsg
 decodeServerMsg =
   Json.oneOf
-    [ decodeTestMsg
-    , decodeLöscheLieferung
+    [ decodeLöscheLieferung
     , decodeLöscheBestellung
     , decodeChangeLieferung
     , decodeZeigeNeueLieferung
@@ -36,11 +34,6 @@ decodeZeigeNeueLieferung : Json.Decoder ServerMsg
 decodeZeigeNeueLieferung =
   Json.map ServerZeigeNeueLieferung Json.int
   |> Json.field "ZeigeNeueLieferung"
-
-decodeTestMsg : Json.Decoder ServerMsg
-decodeTestMsg =
-  Json.map TestMsg Json.string
-  |> Json.field "TestMsg"
 
 decodeLöscheLieferung : Json.Decoder ServerMsg
 decodeLöscheLieferung =
@@ -67,12 +60,14 @@ decodeSetzeAllesZurück =
 
 decodeLieferung : Json.Decoder Lieferung
 decodeLieferung =
-  Json.map6 Lieferung
+  Json.map8 Lieferung
     (Json.field "_bestelldatum" decodeDate)
     (Json.field "_lieferdatum" Json.string)
     (Json.field "_bestellungen" (Json.list decodeBestellung))
     (Json.field "_kundenname" Json.string)
     (Json.field "_bestelltyp" decodeBestelltyp)
+    (Json.field "_partyserviceData" decodePartyserviceData)
+    (Json.field "_inPapierkorb" <| Json.nullable decodeDate)
     (Json.field "_lid" Json.int)
 
 decodeDate =
@@ -90,23 +85,22 @@ decodeBestellung =
 
 decodeBestelltyp : Json.Decoder Bestelltyp
 decodeBestelltyp =
-  Json.field "tag" Json.string
+  Json.string
   |> Json.andThen
-      (\tag -> case tag of
+      (\str -> case str of
           "Adelsheim" -> Json.succeed Adelsheim
           "Merchingen" -> Json.succeed Merchingen
-          "Partyservice" -> decodePartyservice
-          _ -> Json.fail "Bestelltyp: invalid 'tag'"
+          "Partyservice" -> Json.succeed Partyservice
+          _ -> Json.fail "invalid Bestelltyp"
       )
 
-decodePartyservice : Json.Decoder Bestelltyp
-decodePartyservice =
-  Json.map Partyservice <|
-    Json.map4 PartyserviceData
-      (Json.field "_adresse" Json.string)
-      (Json.field "_telefon" Json.string)
-      (Json.field "_veranstaltungsort" Json.string)
-      (Json.field "_personenanzahl" Json.int)
+decodePartyserviceData : Json.Decoder PartyserviceData
+decodePartyserviceData =
+  Json.map4 PartyserviceData
+    (Json.field "_adresse" Json.string)
+    (Json.field "_telefon" Json.string)
+    (Json.field "_veranstaltungsort" Json.string)
+    (Json.field "_personenanzahl" Json.string)
 
 testJson =
   """

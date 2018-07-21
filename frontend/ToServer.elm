@@ -19,10 +19,11 @@ löscheBestellung lid bid =
     , ("Lieferung"        , Json.int lid)
     ]
 
-löscheLieferung : Int -> Json.Value
-löscheLieferung id =
+papierkorbLieferung : Int -> Bool -> Json.Value
+papierkorbLieferung id bool =
   Json.object
-    [ ("LöscheLieferung", Json.int id)
+    [ ("PapierkorbLieferung", Json.bool bool)
+    , ("Lieferung", Json.int id)
     ]
 
 updateLieferung : Lieferung -> Json.Value
@@ -31,10 +32,10 @@ updateLieferung lieferung =
     [ ("UpdateLieferung" , encodeLieferung lieferung)
     ]
 
-neueLieferung : Date -> Json.Value
-neueLieferung jetzt =
+neueLieferung : Json.Value
+neueLieferung =
   Json.object
-    [ ("NeueLieferung", encodeDate jetzt)
+    [ ("NeueLieferung", Json.string "")
     ]
 
 neueBestellung : Int -> Json.Value
@@ -59,30 +60,35 @@ encodeBestellung bestellung =
 encodeLieferung : Lieferung -> Json.Value
 encodeLieferung lieferung =
   Json.object
-    [ ("_bestelldatum", encodeDate lieferung.bestelldatum)
-    , ("_lieferdatum" , Json.string lieferung.lieferdatum)
-    , ("_bestellungen", Json.list <| List.map encodeBestellung lieferung.bestellungen)
-    , ("_kundenname"  , Json.string lieferung.kundenname)
-    , ("_bestelltyp"  , encodeBestelltyp lieferung.bestelltyp)
+    [ ("_bestelldatum"    , encodeDate lieferung.bestelldatum)
+    , ("_lieferdatum"     , Json.string lieferung.lieferdatum)
+    , ("_bestellungen"    , Json.list <| List.map encodeBestellung lieferung.bestellungen)
+    , ("_kundenname"      , Json.string lieferung.kundenname)
+    , ("_bestelltyp"      , encodeBestelltyp lieferung.bestelltyp)
+    , ("_partyserviceData", encodePartyserviceData lieferung.partyserviceData)
+    , ( "_inPapierkorb"
+      , case lieferung.inPapierkorb of
+          Just date -> encodeDate date
+          Nothing   -> Json.null
+      )
     , ("_lid"         , Json.int lieferung.id)
     ]
 
 encodeBestelltyp : Bestelltyp -> Json.Value
 encodeBestelltyp bestelltyp =
-  Json.object <|
     case bestelltyp of
-      Adelsheim  -> [ ("tag", Json.string "Adelsheim") ]
-      Merchingen -> [ ("tag", Json.string "Merchingen") ]
-      Partyservice party -> encodePartyservice party
+      Adelsheim  -> Json.string "Adelsheim"
+      Merchingen -> Json.string "Merchingen"
+      Partyservice -> Json.string "Partyservice"
 
-encodePartyservice : PartyserviceData -> List (String, Json.Value)
-encodePartyservice party =
-  [ ("tag", Json.string "Partyservice")
-  , ("_adresse", Json.string party.adresse)
-  , ("_telefon", Json.string party.telefon)
-  , ("_veranstaltungsort", Json.string party.veranstaltungsort)
-  , ("_personenanzahl", Json.int party.personenanzahl)
-  ]
+encodePartyserviceData : PartyserviceData -> Json.Value
+encodePartyserviceData party =
+  Json.object
+    [ ("_adresse", Json.string party.adresse)
+    , ("_telefon", Json.string party.telefon)
+    , ("_veranstaltungsort", Json.string party.veranstaltungsort)
+    , ("_personenanzahl", Json.string party.personenanzahl)
+    ]
 
 encodeDate : Date -> Json.Value
 encodeDate jetzt = Json.float (Date.toTime jetzt)

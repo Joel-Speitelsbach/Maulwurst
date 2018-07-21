@@ -1,4 +1,5 @@
-module Details exposing (view,update,subscriptions,Msg)
+module Details exposing (..)
+-- module Details exposing (view,update,subscriptions,Msg)
 
 import Element exposing (..)
 import Element.Input as Input
@@ -25,6 +26,14 @@ ixLieferung lieferungen lieferungsId =
   List.filter (\l -> l.id == lieferungsId) lieferungen
   |> List.head
 
+leereParty : PartyserviceData
+leereParty =
+  { adresse = ""
+  , telefon = ""
+  , veranstaltungsort = ""
+  , personenanzahl = ""
+  }
+
 ---------------------------------------------------------------------
 -------------------------- UPDATE ---------------------------------
 
@@ -34,7 +43,9 @@ type Msg
   | LöscheBestellung Lieferung Bestellung
   | Change Lieferung
   | NeueBestellung Lieferung
-  | LöscheLieferung Lieferung
+  | TogglePapierkorb Lieferung
+  | Reload
+  | DoNothing
 
 type alias Elem variation = Element Stil variation Msg
 type alias Attrs variation = List (Attribute variation Msg)
@@ -46,9 +57,14 @@ update msg model =
       ( model
       , ToServer.send (ToServer.updateLieferung lieferung)
       )
-    LöscheLieferung lieferung ->
-      ( model
-      , ToServer.send (ToServer.löscheLieferung lieferung.id)
+    TogglePapierkorb lieferung ->
+      ( if inPapierkorbBool lieferung
+        then model
+        else
+          { model
+          | ansicht = Übersicht
+          }
+      , ToServer.send <| ToServer.papierkorbLieferung lieferung.id <| not <| inPapierkorbBool lieferung
       )
     NeueBestellung lieferung ->
       ( model
@@ -78,6 +94,18 @@ update msg model =
                 then Übersicht
                 else model.ansicht
               a -> a
+        }
+      , Cmd.none
+      )
+    DoNothing -> (model, Cmd.none)
+    Reload ->
+      ( { model
+        | ansicht =
+            let curr = model.ansicht
+            in
+              case curr of
+                Details d -> Details { d | reloading = True}
+                _ -> curr
         }
       , Cmd.none
       )
@@ -116,13 +144,8 @@ view ansicht lieferungen =
 viewLieferung lieferung =
   viewport Stil.stylesheet <| el Stil.Neutral [center, pading 20] <|
     column Stil.Neutral [spacin 20] <|
-      let sizes = [{-80,-} 35,180,80,240]
-      in
-        [ Tab.reiheStil Stil.TabelleSpaltenName [] 5 sizes [{-empty,-} text "PLU", text "Artikelbezeichnung", text "Menge", text "Freitext"]
-        , column Stil.Neutral [spacin 20] <|
-            List.map (viewBestellung sizes lieferung) lieferung.bestellungen
-        , flip (button Stil.Button) (text "+") <|
-            [ onClick (NeueBestellung lieferung), height (pxx 30) ]
+        [ viewBestellTyp lieferung
+        , viewBestellungTabelle lieferung
         , row Stil.Neutral [spacin 20]
             [ text "Kunde:"
             , textfeld lieferung.kundenname <| \str -> Change {lieferung | kundenname = str}
@@ -136,19 +159,95 @@ viewLieferung lieferung =
               in
                 textInput Input.text (Stil.TextFeld istValide) [] lieferung.lieferdatum <| \str -> Change {lieferung | lieferdatum = str}
             ]
-        , row Stil.Neutral [spacin 100] <|
-            let höhe = height (pxx 70)
-            in
-              [ column Stil.Neutral [spacin 6, width (fillPortion 3), höhe]
-                  [ button Stil.Button [attribute "onClick" "window.print()", height fill, width fill] (text "Drucken")
-                  , button Stil.Button [onClick ZuÜbersicht, width fill, height fill] (text "Speichern")
-                  ]
-              , column Stil.Neutral [spacin 6, width (fillPortion 1), höhe]
-                  [ el Stil.Neutral         [height (fillPortion 5)] empty
-                  , button Stil.LöschButton [height (fillPortion 3), onClick (LöscheLieferung lieferung)] (text "(Entgültig) Löschen")
-                  ]
-              ]
+        , if lieferung.bestelltyp == Partyservice
+          then viewPartyservice lieferung
+          else empty
+        , viewControlArea lieferung
         ]
+
+viewBestellTyp : Lieferung -> Elem var
+viewBestellTyp lieferung =
+  Input.radioRow Stil.Neutral [ pading 0, spacin 10, center ]
+      { onChange = \btyp ->
+          Change {lieferung | bestelltyp = btyp}
+      , selected = Just lieferung.bestelltyp
+      , label = Input.hiddenLabel ""
+      , options = []
+      , choices =
+          [ btypChoice Merchingen
+          , btypChoice Adelsheim
+          , btypChoice Partyservice
+          ]
+      }
+
+btypChoice btypStr =
+  let txt = text <| bestelltypString btypStr
+  in
+    Input.styledChoice btypStr <|
+      \selected ->
+        if selected
+          then el (Stil.Btyp btypStr) [] txt
+          else el (Stil.Neutral)      [] txt
+
+viewLieferungEintrag lieferung label content changer =
+  row Stil.Neutral [spacin 20]
+    [ text (label ++ ":")
+    , textfeld content <| \str -> Change (changer str lieferung)
+    ]
+
+partyChanger newParty str lieferung =
+  { lieferung
+  | partyserviceData = newParty str
+  }
+
+viewPartyservice : Lieferung -> Elem Msg
+viewPartyservice lieferung =
+  let party = lieferung.partyserviceData
+  in
+    column Stil.Neutral [spacin 20] <|
+      [ viewLieferungEintrag lieferung "Adresse" party.adresse <|
+          partyChanger <| \str -> { party | adresse = str }
+      , viewLieferungEintrag lieferung "Telefon" party.telefon <|
+          partyChanger <| \str -> { party | telefon = str }
+      , viewLieferungEintrag lieferung "Veranstaltungsort" party.veranstaltungsort <|
+          partyChanger <| \str -> { party | veranstaltungsort = str }
+      , viewLieferungEintrag lieferung "Personenanzahl" party.personenanzahl <|
+          partyChanger <| \str -> { party | personenanzahl = str }
+      ]
+
+viewControlArea lieferung =
+  row Stil.Neutral [spacin 100] <|
+    let höhe = height (pxx 70)
+    in
+      [ column Stil.Neutral [spacin 6, width (fillPortion 3), höhe]
+          [ button Stil.Button [attribute "onClick" "window.print()", height fill, width fill] (text "Drucken")
+          , button Stil.Button [onClick ZuÜbersicht, width fill, height fill] (text "Speichern")
+          ]
+      , column Stil.Neutral [spacin 6, width (fillPortion 1), höhe]
+          [ el Stil.Neutral         [height (fillPortion 5)] empty
+          , viewPapierkorbButton lieferung
+          ]
+      ]
+
+viewPapierkorbButton lieferung =
+  button (Stil.Stat Nothing)
+    [ height (fillPortion 3)
+    , onClick (TogglePapierkorb lieferung)
+    ] <|
+    case lieferung.inPapierkorb of
+      Nothing -> text "In Papierkorb legen"
+      Just _  -> text "Aus dem Müll herausholen"
+
+viewBestellungTabelle  lieferung=
+  let sizes = [{-80,-} 35,180,80,240]
+  in
+    column Stil.Neutral [spacin 20] <|
+      [ Tab.reiheStil Stil.TabelleSpaltenName [] 5 sizes [{-empty,-} text "PLU", text "Artikelbezeichnung", text "Menge", text "Freitext"]
+      , column Stil.Neutral [spacin 20] <|
+          List.map (viewBestellung sizes lieferung) lieferung.bestellungen
+      , flip (button Stil.ButtonSmall) (text "Artikel hinzufügen...") <|
+          [ onClick (NeueBestellung lieferung), height (pxx 30) ]
+      ]
 
 viewBestellung sizes lieferung bestellung =
   let
@@ -179,13 +278,13 @@ viewBestellung sizes lieferung bestellung =
         ]
 
 statusChoice status =
-  let txt = text <| statusString status
+  let txt = text <| statusString <| Just status
   in
     Input.styledChoice status <|
       \selected ->
         if selected
-          then el (Stil.Stat status) [] txt
-          else el (Stil.Neutral)     [] txt
+          then el (Stil.Stat <| Just status) [] txt
+          else el (Stil.Neutral)             [] txt
 
 type alias TextInput variation = Stil -> List (Attribute variation Msg) -> Input.Text Stil variation Msg -> Element Stil variation Msg
 

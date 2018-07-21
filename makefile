@@ -22,7 +22,7 @@ bin/backend: $(SRC_Hs)
 	$(HC) -main-is Main backend.hs -o $@
 
 frontend/index.html: $(SRC_Elm)
-	cd frontend; elm-make Übersicht.elm
+	cd frontend; elm-make frontend.elm
 
 clean :
 	rm -frv bin
