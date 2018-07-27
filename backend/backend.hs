@@ -68,8 +68,8 @@ main = do
         Disk.speichereLieferungenPeriodisch lieferungenT
         CleanUp.räumeDatenAufPeriodisch lieferungenT broadcastChannel
         forkIO $ Websocket.runServer
-          "192.168.178.45"
-          -- "37.221.194.181"
+          -- "192.168.178.45"
+          "37.221.194.181"
           18539
           (wsApp lieferungenT broadcastChannel)
         Warp.run 3000 sendHtmlApp

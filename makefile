@@ -3,9 +3,9 @@ HC = cd backend && ghc -O2 -outputdir=../bin -threaded -W -fno-warn-missing-sign
 SRC_Hs = backend/*.hs
 SRC_Elm = frontend/*.elm
 
-move: move/backend move/index move/makefile
-
 build: bin/backend frontend/index.html
+
+move: move/backend move/index move/makefile
 
 move/backend: $(SRC_Hs)
 	scp $(SRC_Hs) otto@37.221.194.181:/home/otto/Server/backend

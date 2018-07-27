@@ -93,5 +93,5 @@ inPapierkorbBool lieferung =
   Maybe.map (\_ -> True) lieferung.inPapierkorb
   |> Maybe.withDefault False
 
-serverUrl = "ws://192.168.178.45:18539"
--- serverUrl = "ws://37.221.194.181:18539"
+-- serverUrl = "ws://192.168.178.45:18539"
+serverUrl = "ws://37.221.194.181:18539"
