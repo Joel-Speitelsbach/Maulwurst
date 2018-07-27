@@ -3,7 +3,6 @@ module Types exposing (..)
 import Date exposing (Date)
 import Datum
 import Time exposing (Time)
-import DatePicker exposing (DatePicker)
 import CommonTypes exposing (..)
 
 type alias Model =
