@@ -14,7 +14,6 @@ import Date exposing (Date)
 import Time exposing (Time)
 import FromServer as FromServer exposing (ServerMsg(..))
 import WebSocket
-import DatePicker
 
 main = Html.program {view=view, init=init, update=update, subscriptions=subscriptions}
 
