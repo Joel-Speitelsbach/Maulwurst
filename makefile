@@ -1,5 +1,5 @@
 
-HC = cd backend && ghc -O2 -outputdir=../bin -threaded -Wall
+HC = cd backend && ghc -O2 -outputdir=../bin -threaded -Wall -fno-warn-missing-signatures
 SRC_Hs = backend/*.hs
 SRC_Elm = frontend/*.elm
 
