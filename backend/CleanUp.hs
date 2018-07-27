@@ -56,7 +56,7 @@ aktivDatum Lieferung{_inPapierkorb = pap
                     } = do
   guard $ isNothing pap
   case eitherLiefer of
-    Right liefer -> return liefer
+    Right liefer -> return $ max liefer bestell
     Left _ -> return bestell
 
 papZeit :: Lieferung -> Maybe Double

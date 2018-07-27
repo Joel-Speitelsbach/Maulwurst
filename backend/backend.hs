@@ -7,7 +7,7 @@ import Control.Monad (forever, void, forM_)
 import qualified System.Exit as Exit
 import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WebSockets as WaiWebsocket
+-- import qualified Network.Wai.Handler.WebSockets as WaiWebsocket
 import Network.HTTP.Types (status200)
 
 -- other imports
@@ -21,8 +21,6 @@ import qualified Encoding as Enc
 
 ------------------------------------------------------------------------------
 ------------------ connection stuff -------------------------------------------
-
-delay = threadDelay (1000 * 1000)
 
 sendingToClient fromBroadcast connection =
   forever $ do
@@ -44,7 +42,7 @@ wsApp lieferungenT broadcastChannel pendingConnection = do
     Websocket.sendTextData connection $ Enc.herzschlag
 
 -- waiApp :: .. -> Application
-waiApp wsApp = WaiWebsocket.websocketsOr defaultConnectionOptions wsApp sendHtmlApp
+-- waiApp wsApp = WaiWebsocket.websocketsOr defaultConnectionOptions wsApp sendHtmlApp
 
 sendHtmlApp :: Application
 sendHtmlApp _ respond = respond sendIndex
