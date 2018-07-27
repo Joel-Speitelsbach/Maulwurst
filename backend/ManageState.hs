@@ -18,7 +18,10 @@ type TaskM m inp out = inp -> TVar [Lieferung] -> TChan [B.ByteString] -> m out
 -------------------------- core tasks ----------------------------------
 
 aktualisiereLieferungen :: Task (Lieferung -> Maybe Lieferung)
-aktualisiereLieferungen mapper lieferungenT broadcastChannel =
+aktualisiereLieferungen mapper = aktualisiereLieferungenOptionalCleanup (mapper, True)
+
+aktualisiereLieferungenOptionalCleanup :: Task (Lieferung -> Maybe Lieferung, Bool)
+aktualisiereLieferungenOptionalCleanup (mapper, withCleanup) lieferungenT broadcastChannel =
   do
     alteLieferungen <- readTVar lieferungenT
     let
@@ -28,7 +31,10 @@ aktualisiereLieferungen mapper lieferungenT broadcastChannel =
           (\newLief ->
               let (geputzteLief, delMsgs) = cleanUpLieferung newLief
                   msgs = A.encode geputzteLief : delMsgs
-              in  (geputzteLief, msgs)
+              in
+                if withCleanup
+                  then (geputzteLief, msgs)
+                  else (newLief, [A.encode newLief])
           )
           $ mapper lief
     writeTVar lieferungenT neueLieferungen
@@ -74,9 +80,9 @@ updateLieferung lieferung = aktualisiereLieferungen maybeReplace where
                     | otherwise                    = Nothing
 
 fügeNeueBestellungHinzu :: Task Int
-fügeNeueBestellungHinzu liefId = aktualisiereLieferungen maybeReplace where
+fügeNeueBestellungHinzu liefId = aktualisiereLieferungenOptionalCleanup (maybeReplace, False) where
   maybeReplace lief | _lid lief == liefId  = Just neueLief
-                    | otherwise         = Nothing
+                    | otherwise            = Nothing
     where
       newID = (+1) $ maximum $ (0:) $ map _bid $ _bestellungen lief
       neueLief = over bestellungen (++ [neueBestellung]) lief
