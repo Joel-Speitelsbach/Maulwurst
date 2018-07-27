@@ -1,9 +1,9 @@
 
-HC = cd backend && ghc -O2 -outputdir=../bin -threaded -W -fno-warn-missing-signatures
+HC = cd backend && ghc -O2 -outputdir=bin -dynamic -threaded -W -fno-warn-missing-signatures
 SRC_Hs = backend/*.hs
 SRC_Elm = frontend/*.elm
 
-build: bin/backend frontend/index.html
+build: backend/bin/backend frontend/index.html
 
 move: move/backend move/index move/makefile
 
@@ -22,7 +22,7 @@ move/index: frontend/index.html
 	mkdir -p move/
 	touch $@
 
-bin/backend: $(SRC_Hs)
+backend/bin/backend: $(SRC_Hs)
 	mkdir -p bin
 	$(HC) -main-is Main backend.hs -o ../$@
 
