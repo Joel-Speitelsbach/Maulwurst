@@ -1,16 +1,22 @@
 module Types exposing (..)
 
 import Date exposing (Date)
+import Datum
+import Time exposing (Time)
+import DatePicker exposing (DatePicker)
+import CommonTypes exposing (..)
 
 type alias Model =
   { lieferungen : List Lieferung
   , übersichtZustand : ÜbersichtZustand
   , ansicht : Ansicht
+  , letzteServerNachricht : Time
+  , jetzt : Time
   }
 
 type alias Lieferung =
   { bestelldatum : Date
-  , lieferdatum : String
+  , lieferdatum : Datum.Model
   , bestellungen : List Bestellung
   , kundenname : String
   , bestelltyp : Bestelltyp
@@ -28,11 +34,6 @@ type alias Bestellung =
   , id : Int
   }
 
-type Bestelltyp
-  = Adelsheim
-  | Merchingen
-  | Partyservice
-
 type alias PartyserviceData =
   { adresse : String
   , telefon : String
@@ -46,8 +47,13 @@ type Ansicht
 
 type alias DetailsAnsicht =
   { id : Int
-  , reloading : Bool
+  , modus : DetailsModus
   }
+
+type DetailsModus
+  = DetailsNormal
+  | Reloading
+  | LöschDialog
 
 type alias ÜbersichtZustand =
   { neueLieferungAngefordert : Bool
@@ -67,11 +73,6 @@ type SortCategory
   | SortStatus
   | Kunde
   | SortBestelltyp
-
-type Status
-  = Neu
-  | InBearbeitung
-  | Fertig
 
 --------------------------------------------------------------------
 ------------------------ common values ---------------------------

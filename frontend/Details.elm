@@ -1,26 +1,28 @@
 module Details exposing (..)
--- module Details exposing (view,update,subscriptions,Msg)
 
 import Element exposing (..)
 import Element.Input as Input
 import Element.Events exposing (..)
 import Element.Attributes exposing (..)
 import Types exposing (..)
+import CommonTypes exposing (..)
 import Date exposing (Date)
 import ToServer
 import Html exposing (Html)
-import Stil exposing (Stil, scale, spacin, pading, pxx)
+import Stil exposing (Stil, scale, spacin, pading, pxx, vergr)
 import Tabelle as Tab
 import Time exposing (minute)
+import Datum
 
------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
 
 acceptCheck : Lieferung -> Bool
 acceptCheck lieferung =
-  Date.fromString lieferung.lieferdatum
-  |> Result.map (\_ -> True)
-  |> Result.withDefault False
+  case lieferung.lieferdatum of
+    Datum.Datum _ -> True
+    Datum.DatumStr _ -> False
 
 ixLieferung lieferungen lieferungsId =
   List.filter (\l -> l.id == lieferungsId) lieferungen
@@ -34,6 +36,7 @@ leereParty =
   , personenanzahl = ""
   }
 
+
 ---------------------------------------------------------------------
 -------------------------- UPDATE ---------------------------------
 
@@ -46,11 +49,12 @@ type Msg
   | TogglePapierkorb Lieferung
   | Reload
   | DoNothing
+  | PapTatsächlich Lieferung Bool
 
 type alias Elem variation = Element Stil variation Msg
 type alias Attrs variation = List (Attribute variation Msg)
 
-update : Msg -> Model -> (Model, Cmd msg)
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     Change lieferung ->
@@ -58,13 +62,37 @@ update msg model =
       , ToServer.send (ToServer.updateLieferung lieferung)
       )
     TogglePapierkorb lieferung ->
-      ( if inPapierkorbBool lieferung
-        then model
-        else
-          { model
-          | ansicht = Übersicht
+      if inPapierkorbBool lieferung
+      then
+        ( model
+        , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
+        )
+      else
+        ( { model
+          | ansicht =
+              case model.ansicht of
+                Details details ->
+                  Details
+                    { details
+                    | modus = LöschDialog
+                    }
+                a -> a
           }
-      , ToServer.send <| ToServer.papierkorbLieferung lieferung.id <| not <| inPapierkorbBool lieferung
+        , Cmd.none
+        )
+    PapTatsächlich lieferung bool ->
+      ( { model
+        | ansicht =
+            case model.ansicht of
+              Details d ->
+                if bool
+                then Übersicht
+                else Details { d | modus = DetailsNormal}
+              a -> a
+        }
+      , if bool
+        then ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
+        else Cmd.none
       )
     NeueBestellung lieferung ->
       ( model
@@ -77,7 +105,7 @@ update msg model =
     StopReloading ->
       ( { model
         | ansicht = case model.ansicht of
-            Details a -> Details { a | reloading = False}
+            Details a -> Details { a | modus = DetailsNormal}
             _ -> model.ansicht
         }
       , Cmd.none
@@ -104,7 +132,7 @@ update msg model =
             let curr = model.ansicht
             in
               case curr of
-                Details d -> Details { d | reloading = True}
+                Details d -> Details { d | modus = Reloading }
                 _ -> curr
         }
       , Cmd.none
@@ -120,50 +148,56 @@ updateBestellung lieferung onString val =
         else b
   in Change {lieferung | bestellungen = List.map update lieferung.bestellungen}
 
+
 --------------------------------------------------------------------------------
 ------------------------ SUBSCRIPTIONS ------------------------------------------
 
 subscriptions model =
   case model.ansicht of
     Details ansicht ->
-      if ansicht.reloading
+      if ansicht.modus == Reloading
       then Time.every 10 <| (\_ -> StopReloading)
       else Sub.none
     _ -> Sub.none
+
 
 ----------------------------------------------------------------------------
 ------------------------------ VIEW ----------------------------------------
 
 view ansicht lieferungen =
-  if ansicht.reloading
-  then Just (Html.text "reloading")
-  else
-    ixLieferung lieferungen ansicht.id
-    |> Maybe.map viewLieferung
+  case ansicht.modus of
+    Reloading -> Just (text "reloading")
+    LöschDialog ->
+      ixLieferung lieferungen ansicht.id
+      |> Maybe.map viewLöschDialog
+    _ ->
+      ixLieferung lieferungen ansicht.id
+      |> Maybe.map viewLieferung
+      |> Maybe.map (el Stil.Neutral [center, spacin 20])
 
 viewLieferung lieferung =
-  viewport Stil.stylesheet <| el Stil.Neutral [center, pading 20] <|
-    column Stil.Neutral [spacin 20] <|
-        [ viewBestellTyp lieferung
-        , viewBestellungTabelle lieferung
-        , row Stil.Neutral [spacin 20]
-            [ text "Kunde:"
-            , textfeld lieferung.kundenname <| \str -> Change {lieferung | kundenname = str}
-            ]
-        , row Stil.Neutral [spacin 20]
-            [ text "Lieferdatum:"
-            , let
-                istValide =
-                  Result.map (\_ -> True) (Date.fromString lieferung.lieferdatum)
-                  |> Result.withDefault False
-              in
-                textInput Input.text (Stil.TextFeld istValide) [] lieferung.lieferdatum <| \str -> Change {lieferung | lieferdatum = str}
-            ]
-        , if lieferung.bestelltyp == Partyservice
-          then viewPartyservice lieferung
-          else empty
-        , viewControlArea lieferung
-        ]
+  column Stil.Neutral [spacin 20] <|
+      [ viewBestellTyp lieferung
+      , viewBestellungTabelle lieferung
+      , row Stil.Neutral [spacin 20]
+          [ text "Kunde:"
+          , textfeld lieferung.kundenname <| \str -> Change {lieferung | kundenname = str}
+          ]
+      , empty -- lieferdatum
+      , if lieferung.bestelltyp == Partyservice
+        then viewPartyservice lieferung
+        else empty
+      , viewControlArea lieferung
+      , Element.map
+          (\datumMsg ->
+              Change
+                { lieferung
+                | lieferdatum =
+                    Datum.update datumMsg lieferung.lieferdatum
+                }
+          ) <|
+          Datum.viewPickDate lieferung.lieferdatum
+      ]
 
 viewBestellTyp : Lieferung -> Elem var
 viewBestellTyp lieferung =
@@ -238,14 +272,22 @@ viewPapierkorbButton lieferung =
       Nothing -> text "In Papierkorb legen"
       Just _  -> text "Aus dem Müll herausholen"
 
+viewLöschDialog : Lieferung -> Elem var
+viewLöschDialog lieferung =
+  el Stil.Neutral [center, verticalCenter] <|
+    row Stil.Neutral [spacin 90]
+      [ button (Stil.Stat Nothing) [onClick <| PapTatsächlich lieferung True] (text "In Papierkorb legen")
+      , button Stil.Button [onClick <| PapTatsächlich lieferung False] (text "Behalten")
+      ]
+
 viewBestellungTabelle  lieferung=
-  let sizes = [{-80,-} 35,180,80,240]
+  let sizes = [{-80,-} 37,180,80,240]
   in
     column Stil.Neutral [spacin 20] <|
       [ Tab.reiheStil Stil.TabelleSpaltenName [] 5 sizes [{-empty,-} text "PLU", text "Artikelbezeichnung", text "Menge", text "Freitext"]
       , column Stil.Neutral [spacin 20] <|
           List.map (viewBestellung sizes lieferung) lieferung.bestellungen
-      , flip (button Stil.ButtonSmall) (text "Artikel hinzufügen...") <|
+      , flip (button Stil.ButtonSmall) (text "Artikel hinzufügen") <|
           [ onClick (NeueBestellung lieferung), height (pxx 30) ]
       ]
 

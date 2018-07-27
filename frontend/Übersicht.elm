@@ -7,9 +7,12 @@ import Element.Input as Input
 import Date exposing (Date)
 import Stil exposing (Stil, scale, spacin, pading, pxx)
 import Types exposing (..)
+import CommonTypes exposing (..)
 import Tabelle as Tab
 import Html exposing (Html)
 import ToServer as ToServer
+import Datum
+import DayColors as Days
 
 -----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
@@ -34,7 +37,7 @@ lieferStatus {bestellungen, inPapierkorb} =
 
 lieferungLeer : Lieferung -> Bool
 lieferungLeer lieferung =
-  lieferung.lieferdatum == ""
+  lieferung.lieferdatum == Datum.DatumStr ""
   && lieferung.kundenname == ""
   && lieferung.bestellungen == []
 
@@ -47,9 +50,6 @@ type Msg
   | ChangeSort SortCategory
   | ChangeBFilter Bestelltyp Bool
   | ChangePapFilter Bool
-
-type alias Elem variation = Element Stil variation Msg
-type alias Attrs variation = List (Attribute variation Msg)
 
 update : Msg -> Model -> (Model, Cmd msg)
 update msg model =
@@ -77,7 +77,7 @@ updateNoCmd msg model =
       | ansicht =
           Details
             { id = id
-            , reloading = False
+            , modus = DetailsNormal
             }
       }
     ChangeSort sortby ->
@@ -120,15 +120,13 @@ updateNoCmd msg model =
 ---------------------------------------------------------------------------
 ------------------------ VIEW ---------------------------------------------
 
-view : Model -> Html Msg
-view model =
-  viewport Stil.stylesheet <| el Stil.Neutral [center, pading 20] <|
-    el Stil.Neutral [ spacin 20] <|
-       tabelleÜbersicht model
+type alias Elem var = Element Stil var Msg
+type alias Attr var = Attribute var Msg
+type alias Attrs var = List (Attr var)
 
-tabelleÜbersicht : Model -> Elem var
-tabelleÜbersicht model =
-  column Stil.Neutral [spacin 10] <|
+view : Model -> Elem var
+view model =
+  el Stil.Neutral [center, spacin 20] <| column Stil.Neutral [spacin 10] <|
     let
       space = spacin 10
       columnSizes = [110, 240, 200, 200, 100]
@@ -165,7 +163,7 @@ tabelleÜbersicht model =
                   (\l -> pap l && btypActive l
                   )
                   model.lieferungen
-            in sortiere currSortby.vorwärts currSortby.kategorie filtered
+            in sortiere currSortby filtered
          )
 
 viewFilterCheckboxes { anzuzeigendeBtypen, zeigePapierkorb }=
@@ -196,17 +194,14 @@ viewPapFilterCheckbox zeigePapierkorb =
     , options = []
     }
 
-lieferungReihe space columnSizes lieferung =
+lieferungReihe : Attr var -> List Float -> Formatiert var -> Elem var
+lieferungReihe space columnSizes {lieferung,lieferdatum,bestelldatum} =
   button Stil.HiddenButton [onClick (ZeigeDetails lieferung.id)] <| Tab.reihe [space] columnSizes
     [ el (Stil.Btyp lieferung.bestelltyp) [] << el Stil.Neutral [verticalCenter,center] << text <|
         bestelltypString lieferung.bestelltyp
     , textCenter (lieferung.kundenname)
-    , textCenter (viewDate lieferung.bestelldatum)
-    , let
-        txt =
-          Result.map viewDate (Date.fromString lieferung.lieferdatum)
-          |> Result.withDefault lieferung.lieferdatum
-      in textCenter txt
+    , bestelldatum
+    , lieferdatum
     , viewStatus (lieferStatus lieferung)
     ]
 
@@ -216,26 +211,75 @@ viewStatus status =
   el (Stil.Stat status) [] <| el Stil.Neutral [verticalCenter,center] <|
     text <| statusString status
 
-sortiere : Bool -> SortCategory -> List Lieferung -> List Lieferung
-sortiere vorwärts sortby lieferungen =
+type alias Formatiert var =
+  { lieferung : Lieferung
+  , lieferdatum : Elem var
+  , bestelldatum : Elem var
+  }
+
+-- formatiere : Sortby -> List Lieferung -> List (Formatiert var)
+-- formatiere sortby lieferungen =
+
+withDayColors
+  :  (Lieferung -> Maybe Date)
+  -> (Formatiert var -> Elem var)
+  -> (Elem var -> Formatiert var -> Formatiert var)
+  -> List Lieferung
+  -> List (Formatiert var)
+withDayColors getDate getEl setEl lieferungen =
+  List.map2
+    (\farbStil fmt ->
+        setEl (el farbStil [] <| getEl fmt) fmt
+    )
+    (Days.farbSegemente <| List.map getDate lieferungen)
+    (List.map formatDefault lieferungen)
+
+formatDefault : Lieferung -> Formatiert var
+formatDefault lieferung =
+  { lieferung = lieferung
+  , lieferdatum =
+      let
+        txt = Datum.format lieferung.lieferdatum
+      in textCenter txt
+  , bestelldatum =
+      textCenter (Datum.format <| Datum.Datum lieferung.bestelldatum)
+  }
+
+sortiere : Sortby -> List Lieferung -> List (Formatiert var)
+sortiere {vorwärts,kategorie} lieferungen =
   let
     sortiert =
-      case sortby of
-        Bestelldatum -> List.sortBy (.bestelldatum >> Date.toTime >> (\t -> -t)) lieferungen
+      case kategorie of
+        Bestelldatum ->
+          withDayColors
+            (.bestelldatum >> Just)
+            .bestelldatum
+            (\el fmt -> { fmt | bestelldatum = el}) <|
+            List.sortBy (.bestelldatum >> Date.toTime >> (\t -> -t)) lieferungen
         Lieferdatum ->
           let
-            by l =
-                Date.fromString l.lieferdatum
-                |> Result.map Date.toTime
-                |> Result.withDefault 0
-                |> (\t -> -t)
+            by lief =
+              case lief.lieferdatum of
+                Datum.Datum datum ->  -(Date.toTime datum)
+                Datum.DatumStr str -> 0
             filtered =
               List.filter
-                (\l ->
-                  Result.toMaybe (Date.fromString l.lieferdatum) /= Nothing
+                (\lief ->
+                   case lief.lieferdatum of
+                     Datum.Datum _ -> True
+                     Datum.DatumStr _ -> False
                 )
                 lieferungen
-          in List.sortBy by filtered
+          in
+            withDayColors
+              (.lieferdatum >> \dat ->
+                case dat of
+                  Datum.Datum dat -> Just dat
+                  Datum.DatumStr _ -> Nothing
+              )
+              .lieferdatum
+              (\el fmt -> { fmt | lieferdatum = el})
+              (List.sortBy by filtered)
         SortStatus ->
           let
             by l =
@@ -244,8 +288,8 @@ sortiere vorwärts sortby lieferungen =
                 Just InBearbeitung -> 1
                 Just Fertig        -> 2
                 Nothing            -> 3
-          in List.sortBy by lieferungen
-        Kunde -> List.sortBy .kundenname lieferungen
+          in List.map formatDefault <| List.sortBy by lieferungen
+        Kunde -> List.map formatDefault <| List.sortBy .kundenname lieferungen
         SortBestelltyp ->
           let
             by l =
@@ -253,30 +297,6 @@ sortiere vorwärts sortby lieferungen =
                 Adelsheim    -> 0
                 Merchingen   -> 1
                 Partyservice -> 2
-          in List.sortBy by lieferungen
+          in List.map formatDefault <| List.sortBy by lieferungen
   in
     if vorwärts then sortiert else List.reverse sortiert
-
-viewDate : Date -> String
-viewDate datum =
-  let
-    zahlen =
-      List.map ((|>) datum)
-        [ toString << Date.day
-        , toString << Date.month
-        , toString << Date.year
-        , toString << Date.hour
-        , String.padLeft 2 '0' << toString << Date.minute
-        ]
-      ++ [""]
-    format = String.split "%" "%. % %, %:% Uhr"
-  in String.concat <| List.map2 (++) format zahlen
-
----------------------------------------
------------- Löschdialog ----------------
-
-viewLöschDialog löschen zurück =
-  row Stil.Neutral []
-    [ button Stil.Button [onClick löschen] (text "In Papierkorb legen")
-    , button Stil.Button [onClick zurück] (text "Behalten")
-    ]

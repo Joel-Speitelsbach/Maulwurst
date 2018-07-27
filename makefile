@@ -1,14 +1,19 @@
 
-HC = ghc -static -outputdir=bin -threaded
-SRC_Hs = *.hs
+HC = cd backend && ghc -O2 -outputdir=../bin -threaded -Wall
+SRC_Hs = backend/*.hs
 SRC_Elm = frontend/*.elm
 
-move : move/backend move/index
+move: move/backend move/index move/makefile
 
-all: bin/backend frontend/index.html
+build: bin/backend frontend/index.html
 
 move/backend: $(SRC_Hs)
-	scp backend.hs makefile otto@37.221.194.181:/home/otto/Server
+	scp $(SRC_Hs) otto@37.221.194.181:/home/otto/Server/backend
+	mkdir -p move/
+	touch $@
+
+move/makefile: $(SRC_Hs)
+	scp makefile otto@37.221.194.181:/home/otto/Server
 	mkdir -p move/
 	touch $@
 
@@ -19,7 +24,7 @@ move/index: frontend/index.html
 
 bin/backend: $(SRC_Hs)
 	mkdir -p bin
-	$(HC) -main-is Main backend.hs -o $@
+	$(HC) -main-is Main backend.hs -o ../$@
 
 frontend/index.html: $(SRC_Elm)
 	cd frontend; elm-make frontend.elm

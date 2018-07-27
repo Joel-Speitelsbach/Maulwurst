@@ -2,11 +2,15 @@ module Tabelle exposing (..)
 
 import Element exposing (..)
 import Element.Attributes exposing (..)
-import Stil exposing (pxx)
+import Stil exposing (pxx,Stil)
+
+type alias Elem var msg = Element Stil var msg
+type alias Attrs var msg = List (Attribute var msg)
 
 reihe attrs = reiheHeight attrs 25.888
 reiheHeight = reiheStil Stil.Neutral
 
+reiheStil : Stil -> Attrs var msg -> Float -> List Float -> List (Elem var msg) -> Elem var msg
 reiheStil stil attrs height sizes columns =
   let
     addColNumber = List.indexedMap (,)

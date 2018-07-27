@@ -2,7 +2,9 @@ module ToServer exposing (..)
 
 import Json.Encode as Json
 import Types exposing (..)
+import CommonTypes exposing (..)
 import Date exposing (Date)
+import Datum
 import WebSocket
 
 
@@ -61,7 +63,7 @@ encodeLieferung : Lieferung -> Json.Value
 encodeLieferung lieferung =
   Json.object
     [ ("_bestelldatum"    , encodeDate lieferung.bestelldatum)
-    , ("_lieferdatum"     , Json.string lieferung.lieferdatum)
+    , ("_lieferdatum"     , encodeEitherDate lieferung.lieferdatum)
     , ("_bestellungen"    , Json.list <| List.map encodeBestellung lieferung.bestellungen)
     , ("_kundenname"      , Json.string lieferung.kundenname)
     , ("_bestelltyp"      , encodeBestelltyp lieferung.bestelltyp)
@@ -88,6 +90,14 @@ encodePartyserviceData party =
     , ("_telefon", Json.string party.telefon)
     , ("_veranstaltungsort", Json.string party.veranstaltungsort)
     , ("_personenanzahl", Json.string party.personenanzahl)
+    ]
+
+encodeEitherDate : Datum.Model -> Json.Value
+encodeEitherDate either =
+  Json.object
+    [ case either of
+        Datum.Datum date -> ("Right", encodeDate date)
+        Datum.DatumStr str -> ("Left", Json.string str)
     ]
 
 encodeDate : Date -> Json.Value

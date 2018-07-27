@@ -2,7 +2,9 @@ module FromServer exposing (..)
 
 import Json.Decode as Json
 import Types exposing (..)
+import CommonTypes exposing (..)
 import Date exposing (Date)
+import Datum
 
 type ServerMsg
   = ServerLöscheBestellung Int Int
@@ -10,6 +12,7 @@ type ServerMsg
   | ServerChangeLieferung Lieferung
   | ServerZeigeNeueLieferung Int
   | ServerSetzeAllesZurück
+  | ServerHerzschlag
   | MalformedMsg String
 
 ----------------------------------------------
@@ -28,6 +31,7 @@ decodeServerMsg =
     , decodeChangeLieferung
     , decodeZeigeNeueLieferung
     , decodeSetzeAllesZurück
+    , decodeHerzschlag
     ]
 
 decodeZeigeNeueLieferung : Json.Decoder ServerMsg
@@ -55,6 +59,11 @@ decodeSetzeAllesZurück =
   Json.map (\_ -> ServerSetzeAllesZurück) <|
     Json.field "SetzeZurück" Json.string
 
+decodeHerzschlag : Json.Decoder ServerMsg
+decodeHerzschlag =
+  Json.map (\_ -> ServerHerzschlag) <|
+    Json.field "Bum..." Json.string
+
 -----------------------------------------
 ------------ misc --------------------------
 
@@ -62,13 +71,22 @@ decodeLieferung : Json.Decoder Lieferung
 decodeLieferung =
   Json.map8 Lieferung
     (Json.field "_bestelldatum" decodeDate)
-    (Json.field "_lieferdatum" Json.string)
+    (Json.field "_lieferdatum" decodeEitherDate)
     (Json.field "_bestellungen" (Json.list decodeBestellung))
     (Json.field "_kundenname" Json.string)
     (Json.field "_bestelltyp" decodeBestelltyp)
     (Json.field "_partyserviceData" decodePartyserviceData)
     (Json.field "_inPapierkorb" <| Json.nullable decodeDate)
     (Json.field "_lid" Json.int)
+
+decodeEitherDate : Json.Decoder Datum.Model
+decodeEitherDate =
+  Json.oneOf
+    [ Json.map Datum.Datum <|
+        Json.field "Right" decodeDate
+    , Json.map Datum.DatumStr <|
+        Json.field "Left"  Json.string
+    ]
 
 decodeDate =
   Json.map Date.fromTime Json.float

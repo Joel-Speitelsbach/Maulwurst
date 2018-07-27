@@ -7,7 +7,8 @@ import Style.Scale as Scale
 import Style.Font as Font
 import Style.Border as Border
 import Color exposing (..)
-import Types exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
+
+import CommonTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 
 type Stil
   = Big
@@ -27,6 +28,12 @@ type Stil
   | TabelleSpaltenName
   | Btyp Bestelltyp
   | WithBorder
+  | Day DayColor
+
+type DayColor
+  = DayColor1
+  | DayColor2
+  | DayColor3
 
 spacin = Attr.spacing << vergr
 pading = Attr.padding << vergr
@@ -35,7 +42,7 @@ pxx    = Attr.px      << vergr
 vergr i = i * scale 1 / 16
 
 scale i =
-  19 * 1.618 ^ (i-1)
+  17 * 1.618 ^ (i-1)
 
 stylesheet =
   Style.styleSheet
@@ -117,6 +124,15 @@ stylesheet =
         ]
     , Style.style WithBorder
         [ border
+        ]
+    , Style.style (Day DayColor1)
+        [ Color.background (rgb 150 150 150)
+        ]
+    , Style.style (Day DayColor2)
+        [ Color.background (rgb 200 200 200)
+        ]
+    , Style.style (Day DayColor3)
+        [ Color.background (rgb 250 250 250)
         ]
     ]
 
