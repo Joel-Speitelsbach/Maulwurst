@@ -34,15 +34,20 @@ init =
         , zeigePapierkorb = False
         }
     , ansicht = Übersicht
-    , jetzt = 10 * Time.minute
+    , jetztM = Nothing
     , letzteServerNachricht = 0
     }
   , Cmd.none
   )
 
 connectionActive : Model -> Bool
-connectionActive { jetzt, letzteServerNachricht } =
-  jetzt - letzteServerNachricht < 7 * Time.second
+connectionActive { jetztM, letzteServerNachricht } =
+  Maybe.map
+    (\jetzt ->
+      jetzt - letzteServerNachricht < 7 * Time.second
+    )
+    jetztM
+  |> Maybe.withDefault False
 
 ---------------------------------------------------------------------
 -------------------------- UPDATE ---------------------------------
@@ -68,11 +73,11 @@ updateNoCmd msg model =
       reactServer msg model
       |> (\m ->
             { m
-            | letzteServerNachricht = model.jetzt
+            | letzteServerNachricht = Maybe.withDefault 0 model.jetztM
             }
          )
     NeueZeit zeit ->
-      { model | jetzt = zeit}
+      { model | jetztM = Just zeit }
     _                  -> model
 
 reactServer msg model =

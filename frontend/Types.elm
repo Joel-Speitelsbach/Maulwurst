@@ -9,8 +9,8 @@ type alias Model =
   { lieferungen : List Lieferung
   , übersichtZustand : ÜbersichtZustand
   , ansicht : Ansicht
+  , jetztM : Maybe Time
   , letzteServerNachricht : Time
-  , jetzt : Time
   }
 
 type alias Lieferung =
