@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- connection imports
 import Network.WebSockets as Websocket
@@ -18,6 +19,7 @@ import qualified ListenClients as OnClients
 import qualified ManageState as State
 import qualified CleanUp
 import qualified Encoding as Enc
+import qualified Data.Local as Local
 
 ------------------------------------------------------------------------------
 ------------------ connection stuff -------------------------------------------
@@ -66,10 +68,9 @@ main = do
         Disk.speichereLieferungenPeriodisch lieferungenT
         CleanUp.räumeDatenAufPeriodisch lieferungenT broadcastChannel
         forkIO $ Websocket.runServer
-          -- "192.168.178.45"
-          "37.221.194.181"
-          18539
+          Local.serverIP
+          Local.websocketPort
           (wsApp lieferungenT broadcastChannel)
-        Warp.run 3000 sendHtmlApp
+        Warp.run (Local.websocketPort+1) sendHtmlApp
     void $ getLine
     Exit.exitSuccess

@@ -57,7 +57,7 @@ fügeNeueLieferungHinzu millisecs lieferungenT broadcastChannel =
     let
       newID = (+1) $ maximum $ (0:) $ map _lid lieferungen
       pdata = PartyserviceData "" "" "" ""
-      neueLieferung = Lieferung millisecs (Left "") "" Merchingen pdata Nothing newID []
+      neueLieferung = Lieferung millisecs (Left "") "" Partyservice pdata Nothing newID []
     writeTVar lieferungenT (neueLieferung : lieferungen)
     writeTChan broadcastChannel $ [A.encode neueLieferung]
     return newID

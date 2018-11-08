@@ -6,13 +6,14 @@ import CommonTypes exposing (..)
 import Date exposing (Date)
 import Datum
 import WebSocket
+import Local
 
 
 -- Nachrichten an Server
 
 send : Json.Value -> Cmd msg
 send msg =
-  WebSocket.send serverUrl (Json.encode 0 msg)
+  WebSocket.send Local.serverUrl (Json.encode 0 msg)
 
 löscheBestellung : Int -> Int -> Json.Value
 löscheBestellung lid bid =

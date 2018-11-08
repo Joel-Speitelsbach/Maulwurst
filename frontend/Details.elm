@@ -270,7 +270,7 @@ viewPapierkorbButton lieferung =
     ] <|
     case lieferung.inPapierkorb of
       Nothing -> text "In Papierkorb legen"
-      Just _  -> text "Aus dem Müll herausholen"
+      Just _  -> text "Aus dem Papierkorb herausholen"
 
 viewLöschDialog : Lieferung -> Elem var
 viewLöschDialog lieferung =

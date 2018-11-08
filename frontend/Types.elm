@@ -78,20 +78,17 @@ type SortCategory
 
 statusString status =
   case status of
-    Just Neu -> "Neu"
+    Just Neu           -> "Neu"
     Just InBearbeitung -> "Bearbeitung"
-    Just Fertig -> "Fertig"
-    Nothing -> "Papierkorb"
+    Just Fertig        -> "Fertig"
+    Nothing            -> "Papierkorb"
 
 bestelltypString bestelltyp =
   case bestelltyp of
-    Adelsheim -> "Adelsheim"
-    Merchingen -> "Merchingen"
+    Adelsheim    -> "Adelsheim"
+    Merchingen   -> "Merchingen"
     Partyservice -> "Partyservice"
 
 inPapierkorbBool lieferung =
   Maybe.map (\_ -> True) lieferung.inPapierkorb
   |> Maybe.withDefault False
-
--- serverUrl = "ws://192.168.178.45:18539"
-serverUrl = "ws://37.221.194.181:18539"

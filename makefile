@@ -1,6 +1,7 @@
 
 HC = cd backend && ghc -O2 -outputdir=bin -dynamic -threaded -W -fno-warn-missing-signatures
-SRC_Hs = backend/*.hs
+SRC_Hs_All = backend/*/*.hs
+SRC_Hs = $(filter-out backend/Data/Local.hs, $(SRC_Hs_All))
 SRC_Elm = frontend/*.elm
 
 build: backend/bin/backend frontend/index.html
@@ -23,7 +24,7 @@ move/index: frontend/index.html
 	touch $@
 
 backend/bin/backend: $(SRC_Hs)
-	mkdir -p bin
+	mkdir -p backend/bin
 	$(HC) -main-is Main backend.hs -o ../$@
 
 frontend/index.html: $(SRC_Elm)

@@ -14,6 +14,7 @@ import Date exposing (Date)
 import Time exposing (Time)
 import FromServer as FromServer exposing (ServerMsg(..))
 import WebSocket
+import Local
 
 main = Html.program {view=view, init=init, update=update, subscriptions=subscriptions}
 
@@ -147,7 +148,7 @@ löscheLieferung id model =
 
 subscriptions model =
   let
-    websocket = WebSocket.listen serverUrl (FromServer << FromServer.parseServerMsg)
+    websocket = WebSocket.listen Local.serverUrl (FromServer << FromServer.parseServerMsg)
     zeit = Time.every 1000 NeueZeit
   in
     Sub.batch [websocket, zeit, Sub.map DetailsMsg <| Details.subscriptions model]
@@ -168,9 +169,9 @@ view model =
             Details.view ansicht model.lieferungen
             |> Maybe.map (Element.map DetailsMsg)
             |> Maybe.withDefault übersicht
-      else viewConnecting
+      else viewConnecting model
 
-viewConnecting : Element Stil var msg
-viewConnecting =
+viewConnecting : Model -> Element Stil var msg
+viewConnecting model =
   el Stil.Big [center,verticalCenter] <|
-    text "warte auf Server..."
+    text <| "warte auf Server (" ++ toString (List.length model.lieferungen)  ++ ")..."

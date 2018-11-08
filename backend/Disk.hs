@@ -1,5 +1,6 @@
 module Disk
     ( speichereLieferungenPeriodisch
+    , speichereLieferungen
     , öffneLieferungen
     ) where
 
