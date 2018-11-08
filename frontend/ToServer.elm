@@ -1,8 +1,8 @@
 module ToServer exposing (..)
 
 import Json.Encode as Json
-import Types exposing (..)
 import CommonTypes exposing (..)
+import CommonnTypes exposing (..)
 import Date exposing (Date)
 import Datum
 import WebSocket
@@ -80,17 +80,17 @@ encodeLieferung lieferung =
 encodeBestelltyp : Bestelltyp -> Json.Value
 encodeBestelltyp bestelltyp =
     case bestelltyp of
-      Adelsheim  -> Json.string "Adelsheim"
-      Merchingen -> Json.string "Merchingen"
+      Adelsheim    -> Json.string "Adelsheim"
+      Merchingen   -> Json.string "Merchingen"
       Partyservice -> Json.string "Partyservice"
 
 encodePartyserviceData : PartyserviceData -> Json.Value
 encodePartyserviceData party =
   Json.object
-    [ ("_adresse", Json.string party.adresse)
-    , ("_telefon", Json.string party.telefon)
+    [ ("_adresse",           Json.string party.adresse)
+    , ("_telefon",           Json.string party.telefon)
     , ("_veranstaltungsort", Json.string party.veranstaltungsort)
-    , ("_personenanzahl", Json.string party.personenanzahl)
+    , ("_personenanzahl",    Json.string party.personenanzahl)
     ]
 
 encodeEitherDate : Datum.Model -> Json.Value

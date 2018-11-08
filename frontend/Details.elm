@@ -1,27 +1,44 @@
 module Details exposing (..)
 
+import CommonTypes exposing (..)
+import CommonnTypes exposing (..)
+import Datum
+import Date exposing (Date)
 import Element exposing (..)
 import Element.Input as Input
 import Element.Events exposing (..)
 import Element.Attributes exposing (..)
-import Types exposing (..)
-import CommonTypes exposing (..)
-import Date exposing (Date)
-import ToServer
 import Html exposing (Html)
 import Stil exposing (Stil, scale, spacin, pading, pxx, vergr)
+import ToServer
 import Tabelle as Tab
 import Time exposing (minute)
-import Datum
 
 
 ----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
 
-acceptCheck : Lieferung -> Bool
-acceptCheck lieferung =
+type Model
+  = Leave
+  | NotLeave
+      { lieferungen : List Lieferung
+      , ansicht     : Ansicht
+      }
+
+type alias Ansicht =
+  { liefer_id : Int
+  , modus : Modus
+  }
+
+type Modus
+  = NormalAnsicht
+  | Reloading
+  | LöschDialog
+
+checkLieferung : Lieferung -> Bool
+checkLieferung lieferung =
   case lieferung.lieferdatum of
-    Datum.Datum _ -> True
+    Datum.Datum    _ -> True
     Datum.DatumStr _ -> False
 
 ixLieferung lieferungen lieferungsId =
@@ -30,10 +47,10 @@ ixLieferung lieferungen lieferungsId =
 
 leereParty : PartyserviceData
 leereParty =
-  { adresse = ""
-  , telefon = ""
+  { adresse           = ""
+  , telefon           = ""
   , veranstaltungsort = ""
-  , personenanzahl = ""
+  , personenanzahl    = ""
   }
 
 
@@ -55,88 +72,73 @@ type alias Elem variation = Element Stil variation Msg
 type alias Attrs variation = List (Attribute variation Msg)
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
-  case msg of
-    Change lieferung ->
-      ( model
-      , ToServer.send (ToServer.updateLieferung lieferung)
-      )
-    TogglePapierkorb lieferung ->
-      if inPapierkorbBool lieferung
-      then
-        ( model
-        , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
-        )
-      else
-        ( { model
-          | ansicht =
-              case model.ansicht of
-                Details details ->
-                  Details
-                    { details
-                    | modus = LöschDialog
-                    }
-                a -> a
-          }
-        , Cmd.none
-        )
-    PapTatsächlich lieferung bool ->
-      ( { model
-        | ansicht =
-            case model.ansicht of
-              Details d ->
-                if bool
-                then Übersicht
-                else Details { d | modus = DetailsNormal}
-              a -> a
-        }
-      , if bool
-        then ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
-        else Cmd.none
-      )
-    NeueBestellung lieferung ->
-      ( model
-      , ToServer.send (ToServer.neueBestellung lieferung.id)
-      )
-    LöscheBestellung lieferung bestellung ->
-      ( model
-      , ToServer.send (ToServer.löscheBestellung lieferung.id bestellung.id)
-      )
-    StopReloading ->
-      ( { model
-        | ansicht = case model.ansicht of
-            Details a -> Details { a | modus = DetailsNormal}
-            _ -> model.ansicht
-        }
-      , Cmd.none
-      )
-    ZuÜbersicht ->
-      ( { model
-        | ansicht =
-            case model.ansicht of
-              Details details ->
-                if
-                  ixLieferung model.lieferungen details.id
-                  |> Maybe.map acceptCheck
-                  |> Maybe.withDefault True
-                then Übersicht
-                else model.ansicht
-              a -> a
-        }
-      , Cmd.none
-      )
-    DoNothing -> (model, Cmd.none)
-    Reload ->
-      ( { model
-        | ansicht =
-            let curr = model.ansicht
-            in
-              case curr of
-                Details d -> Details { d | modus = Reloading }
-                _ -> curr
-        }
-      , Cmd.none
-      )
+update msg model_ =
+  case model_ of
+    Leave -> (Leave, Cmd.none)
+    NotLeave model ->
+      case msg of
+        Change lieferung ->
+          ( NotLeave model
+          , ToServer.send (ToServer.updateLieferung lieferung)
+          )
+        TogglePapierkorb lieferung ->
+          if inPapierkorbBool lieferung
+          then
+            ( NotLeave model
+            , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
+            )
+          else
+            ( ändereModus LöschDialog model_
+            , Cmd.none
+            )
+        PapTatsächlich lieferung bool ->
+          if bool
+          then ( Leave
+               , ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
+               )
+          else ( NotLeave model
+               , Cmd.none
+               )
+        NeueBestellung lieferung ->
+          ( NotLeave model
+          , ToServer.send (ToServer.neueBestellung lieferung.id)
+          )
+        LöscheBestellung lieferung bestellung ->
+          ( NotLeave model
+          , ToServer.send (ToServer.löscheBestellung lieferung.id bestellung.id)
+          )
+        StopReloading ->
+          ( ändereModus NormalAnsicht model_
+          , Cmd.none
+          )
+        ZuÜbersicht ->
+          ( if
+              ixLieferung model.lieferungen model.ansicht.liefer_id
+              |> Maybe.map checkLieferung
+              |> Maybe.withDefault True
+            then Leave
+            else NotLeave model
+          , Cmd.none
+          )
+        DoNothing -> (NotLeave model, Cmd.none)
+        Reload ->
+          ( ändereModus Reloading model_
+          , Cmd.none
+          )
+
+ändereModus : Modus -> Model -> Model
+ändereModus modus model_ =
+  case model_ of
+    NotLeave model -> NotLeave
+      { model
+      | ansicht =
+          let ansicht = model.ansicht
+          in
+            { ansicht
+            | modus = modus
+            }
+      }
+    Leave -> Leave
 
 updateBestellung : Lieferung -> (val -> Bestellung) -> val -> Msg
 updateBestellung lieferung onString val =
@@ -152,26 +154,24 @@ updateBestellung lieferung onString val =
 --------------------------------------------------------------------------------
 ------------------------ SUBSCRIPTIONS ------------------------------------------
 
-subscriptions model =
-  case model.ansicht of
-    Details ansicht ->
-      if ansicht.modus == Reloading
-      then Time.every 10 <| (\_ -> StopReloading)
-      else Sub.none
-    _ -> Sub.none
+subscriptions : Ansicht -> Sub Msg
+subscriptions ansicht =
+    if ansicht.modus == Reloading
+    then Time.every 10 <| (\_ -> StopReloading)
+    else Sub.none
 
 
 ----------------------------------------------------------------------------
 ------------------------------ VIEW ----------------------------------------
 
-view ansicht lieferungen =
+view {ansicht, lieferungen} =
   case ansicht.modus of
     Reloading -> Just (text "reloading")
     LöschDialog ->
-      ixLieferung lieferungen ansicht.id
+      ixLieferung lieferungen ansicht.liefer_id
       |> Maybe.map viewLöschDialog
     _ ->
-      ixLieferung lieferungen ansicht.id
+      ixLieferung lieferungen ansicht.liefer_id
       |> Maybe.map viewLieferung
       |> Maybe.map (el Stil.Neutral [center, spacin 20])
 
@@ -328,7 +328,11 @@ statusChoice status =
           then el (Stil.Stat <| Just status) [] txt
           else el (Stil.Neutral)             [] txt
 
-type alias TextInput variation = Stil -> List (Attribute variation Msg) -> Input.Text Stil variation Msg -> Element Stil variation Msg
+type alias TextInput variation =
+  Stil
+  -> List (Attribute variation Msg)
+  -> Input.Text Stil variation Msg
+  -> Element Stil variation Msg
 
 textfeld : String -> (String -> Msg) -> Elem variation
 textfeld = (textInput Input.text Stil.TextField [])

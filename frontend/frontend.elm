@@ -5,6 +5,7 @@ import Element.Attributes exposing (..)
 import Stil exposing (pading,Stil)
 import Types exposing (..)
 import CommonTypes exposing (..)
+import CommonnTypes exposing (..)
 import Time exposing (minute)
 import Platform.Sub as Sub
 import Details
@@ -63,8 +64,25 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     DetailsMsg msg ->
-      let (newModel, cmd) = Details.update msg model
-      in (newModel, Cmd.map DetailsMsg cmd)
+      case model.ansicht of
+        Übersicht -> (model, Cmd.none)
+        Details ansicht ->
+          let
+            details = Details.NotLeave
+              { lieferungen = model.lieferungen
+              , ansicht = ansicht
+              }
+            (new_details, cmd) = Details.update msg details
+            newModel = case new_details of
+              Details.Leave ->
+                { model
+                | ansicht = Übersicht
+                }
+              Details.NotLeave new_details_ ->
+                { model
+                | ansicht = Details new_details_.ansicht
+                }
+          in (newModel, Cmd.map DetailsMsg cmd)
     ÜbersichtMsg msg -> Übersicht.update msg model
     _ -> (updateNoCmd msg model, Cmd.none)
 
@@ -91,8 +109,8 @@ reactServer msg model =
       { model
       | ansicht =
           Details
-            { id = id
-            , modus = DetailsNormal
+            { liefer_id = id
+            , modus = Details.NormalAnsicht
             }
       , übersichtZustand =
           let curr = model.übersichtZustand
@@ -106,8 +124,10 @@ reactServer msg model =
       | lieferungen = List.map (löscheBestellung bid) model.lieferungen
       , ansicht =
           case model.ansicht of
-            Details d -> if lid == d.id then Details { d | modus = Reloading }
-                                        else Details d
+            Details d ->
+              if lid == d.liefer_id
+              then Details { d | modus = Details.Reloading }
+              else Details d
             a         -> a
       }
     ServerLöscheLieferung id ->
@@ -137,7 +157,7 @@ löscheLieferung id model =
   , ansicht =
       case model.ansicht of
         Details d ->
-          if d.id == id
+          if d.liefer_id == id
           then Übersicht
           else model.ansicht
         _ -> model.ansicht
@@ -150,8 +170,16 @@ subscriptions model =
   let
     websocket = WebSocket.listen Local.serverUrl (FromServer << FromServer.parseServerMsg)
     zeit = Time.every 1000 NeueZeit
+    details =
+      case model.ansicht of
+        Details details -> Sub.map DetailsMsg <| Details.subscriptions details
+        _ -> Sub.none
   in
-    Sub.batch [websocket, zeit, Sub.map DetailsMsg <| Details.subscriptions model]
+    Sub.batch
+      [ websocket
+      , zeit
+      , details
+      ]
 
 
 ----------------------------------------------------------------------------
@@ -166,7 +194,10 @@ view model =
         case model.ansicht of
           Übersicht -> übersicht
           Details ansicht ->
-            Details.view ansicht model.lieferungen
+            Details.view
+              { lieferungen = model.lieferungen
+              , ansicht = ansicht
+              }
             |> Maybe.map (Element.map DetailsMsg)
             |> Maybe.withDefault übersicht
       else viewConnecting model

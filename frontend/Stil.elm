@@ -8,7 +8,7 @@ import Style.Font as Font
 import Style.Border as Border
 import Color exposing (..)
 
-import CommonTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
+import CommonnTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 
 type Stil
   = Big

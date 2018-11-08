@@ -1,9 +1,10 @@
 module Types exposing (..)
 
 import Date exposing (Date)
-import Datum
+import Details
 import Time exposing (Time)
 import CommonTypes exposing (..)
+import CommonnTypes exposing (..)
 
 type alias Model =
   { lieferungen : List Lieferung
@@ -13,46 +14,9 @@ type alias Model =
   , letzteServerNachricht : Time
   }
 
-type alias Lieferung =
-  { bestelldatum : Date
-  , lieferdatum : Datum.Model
-  , bestellungen : List Bestellung
-  , kundenname : String
-  , bestelltyp : Bestelltyp
-  , partyserviceData : PartyserviceData
-  , inPapierkorb : Maybe Date
-  , id : Int
-  }
-
-type alias Bestellung =
-  { plu : String
-  , artikelbezeichnung : String
-  , menge : String
-  , status : Status
-  , freitext : String
-  , id : Int
-  }
-
-type alias PartyserviceData =
-  { adresse : String
-  , telefon : String
-  , veranstaltungsort : String
-  , personenanzahl : String
-  }
-
 type Ansicht
   = Übersicht
-  | Details DetailsAnsicht
-
-type alias DetailsAnsicht =
-  { id : Int
-  , modus : DetailsModus
-  }
-
-type DetailsModus
-  = DetailsNormal
-  | Reloading
-  | LöschDialog
+  | Details Details.Ansicht
 
 type alias ÜbersichtZustand =
   { neueLieferungAngefordert : Bool
@@ -72,23 +36,3 @@ type SortCategory
   | SortStatus
   | Kunde
   | SortBestelltyp
-
---------------------------------------------------------------------
------------------------- common values ---------------------------
-
-statusString status =
-  case status of
-    Just Neu           -> "Neu"
-    Just InBearbeitung -> "Bearbeitung"
-    Just Fertig        -> "Fertig"
-    Nothing            -> "Papierkorb"
-
-bestelltypString bestelltyp =
-  case bestelltyp of
-    Adelsheim    -> "Adelsheim"
-    Merchingen   -> "Merchingen"
-    Partyservice -> "Partyservice"
-
-inPapierkorbBool lieferung =
-  Maybe.map (\_ -> True) lieferung.inPapierkorb
-  |> Maybe.withDefault False

@@ -8,11 +8,15 @@ import Date exposing (Date)
 import Stil exposing (Stil, scale, spacin, pading, pxx)
 import Types exposing (..)
 import CommonTypes exposing (..)
+import CommonnTypes exposing (..)
 import Tabelle as Tab
 import Html exposing (Html)
 import ToServer as ToServer
 import Datum
 import DayColors as Days
+
+--temporär
+import Details
 
 -----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
@@ -76,8 +80,8 @@ updateNoCmd msg model =
       { model
       | ansicht =
           Details
-            { id = id
-            , modus = DetailsNormal
+            { liefer_id = id
+            , modus = Details.NormalAnsicht
             }
       }
     ChangeSort sortby ->
