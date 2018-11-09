@@ -1,7 +1,6 @@
 module FromServer exposing (..)
 
 import Json.Decode as Json
-import Types exposing (..)
 import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
 import Date exposing (Date)

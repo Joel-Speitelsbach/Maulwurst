@@ -1,21 +1,20 @@
 module Main exposing (..)
 
-import Element exposing (..)
-import Element.Attributes exposing (..)
-import Stil exposing (pading,Stil)
-import Types exposing (..)
+import Data.Either exposing (..)
 import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
-import Time exposing (minute)
-import Platform.Sub as Sub
 import Details
-import Übersicht
-import Html exposing (Html)
 import Date exposing (Date)
-import Time exposing (Time)
+import Element exposing (..)
+import Element.Attributes exposing (..)
 import FromServer as FromServer exposing (ServerMsg(..))
-import WebSocket
+import Html exposing (Html)
 import Local
+import Platform.Sub as Sub
+import Stil exposing (pading,Stil)
+import Time exposing (Time, minute)
+import WebSocket
+import Übersicht
 
 main = Html.program {view=view, init=init, update=update, subscriptions=subscriptions}
 
@@ -23,13 +22,25 @@ main = Html.program {view=view, init=init, update=update, subscriptions=subscrip
 -----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
 
+type alias Model =
+  { lieferungen : List Lieferung
+  , übersichtZustand : Übersicht.Model
+  , ansicht : Ansicht
+  , jetztM : Maybe Time
+  , letzteServerNachricht : Time
+  }
+
+type Ansicht
+  = Übersicht
+  | Details Details.Ansicht
+
 init : (Model, Cmd Msg)
 init =
   ( { lieferungen = []
     , übersichtZustand =
         { neueLieferungAngefordert = False
         , sortby =
-            { kategorie = Bestelldatum
+            { kategorie = Übersicht.Bestelldatum
             , vorwärts = True
             }
         , anzuzeigendeBtypen = [Merchingen,Partyservice,Adelsheim]
@@ -83,7 +94,22 @@ update msg model =
                 | ansicht = Details new_details_.ansicht
                 }
           in (newModel, Cmd.map DetailsMsg cmd)
-    ÜbersichtMsg msg -> Übersicht.update msg model
+    ÜbersichtMsg msg ->
+      Tuple.mapFirst
+        (\res -> case res of
+          Left (Übersicht.GeheZuDetails id) ->
+            { model
+            | ansicht = Details
+                { modus = Details.NormalAnsicht
+                , liefer_id = id
+                }
+            }
+          Right ansicht ->
+            { model
+            | übersichtZustand = ansicht
+            }
+        )
+        (Übersicht.update msg model.übersichtZustand)
     _ -> (updateNoCmd msg model, Cmd.none)
 
 updateNoCmd msg model =
@@ -187,7 +213,13 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  let übersicht = Element.map ÜbersichtMsg (Übersicht.view model)
+  let
+    übersicht =
+      Element.map ÜbersichtMsg <|
+        Übersicht.view
+          { lieferungen = model.lieferungen
+          }
+          model.übersichtZustand
   in
     viewport Stil.stylesheet <|
       if connectionActive model then

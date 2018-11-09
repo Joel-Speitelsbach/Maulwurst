@@ -72,23 +72,23 @@ type alias Elem variation = Element Stil variation Msg
 type alias Attrs variation = List (Attribute variation Msg)
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg model_ =
-  case model_ of
+update msg model =
+  case model of
     Leave -> (Leave, Cmd.none)
-    NotLeave model ->
+    NotLeave model_ ->
       case msg of
         Change lieferung ->
-          ( NotLeave model
+          ( NotLeave model_
           , ToServer.send (ToServer.updateLieferung lieferung)
           )
         TogglePapierkorb lieferung ->
           if inPapierkorbBool lieferung
           then
-            ( NotLeave model
+            ( NotLeave model_
             , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
             )
           else
-            ( ändereModus LöschDialog model_
+            ( ändereModus LöschDialog model
             , Cmd.none
             )
         PapTatsächlich lieferung bool ->
@@ -96,33 +96,33 @@ update msg model_ =
           then ( Leave
                , ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
                )
-          else ( NotLeave model
+          else ( NotLeave model_
                , Cmd.none
                )
         NeueBestellung lieferung ->
-          ( NotLeave model
+          ( NotLeave model_
           , ToServer.send (ToServer.neueBestellung lieferung.id)
           )
         LöscheBestellung lieferung bestellung ->
-          ( NotLeave model
+          ( NotLeave model_
           , ToServer.send (ToServer.löscheBestellung lieferung.id bestellung.id)
           )
         StopReloading ->
-          ( ändereModus NormalAnsicht model_
+          ( ändereModus NormalAnsicht model
           , Cmd.none
           )
         ZuÜbersicht ->
           ( if
-              ixLieferung model.lieferungen model.ansicht.liefer_id
+              ixLieferung model_.lieferungen model_.ansicht.liefer_id
               |> Maybe.map checkLieferung
               |> Maybe.withDefault True
             then Leave
-            else NotLeave model
+            else NotLeave model_
           , Cmd.none
           )
-        DoNothing -> (NotLeave model, Cmd.none)
+        DoNothing -> (NotLeave model_, Cmd.none)
         Reload ->
-          ( ändereModus Reloading model_
+          ( ändereModus Reloading model
           , Cmd.none
           )
 

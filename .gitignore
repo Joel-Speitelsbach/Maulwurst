@@ -2,3 +2,15 @@
 elm-stuff
 # elm-repl generated files
 repl-temp-*
+
+# other stuff
+backend/Data/Local.hs
+frontend/Local.elm
+backend/lieferungen*.lst
+backend/bin
+certificates
+frontend/abstellgleis
+frontend/index.html
+frontend/tests
+move
+uml-datatypes.odg

@@ -6,7 +6,6 @@ import Element.Events exposing (..)
 import Element.Input as Input
 import Date exposing (Date)
 import Stil exposing (Stil, scale, spacin, pading, pxx)
-import Types exposing (..)
 import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
 import Tabelle as Tab
@@ -14,12 +13,43 @@ import Html exposing (Html)
 import ToServer as ToServer
 import Datum
 import DayColors as Days
+import Data.Either exposing (..)
 
 --temporär
 import Details
 
+
 -----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
+
+type alias Read =
+  { lieferungen : List Lieferung
+  }
+
+
+type alias Model =
+  { neueLieferungAngefordert : Bool
+  , sortby                   : Sortby
+  , anzuzeigendeBtypen       : List Bestelltyp
+  , zeigePapierkorb          : Bool
+  }
+
+
+type alias Sortby =
+  { kategorie : SortCategory
+  , vorwärts : Bool
+  }
+
+type SortCategory
+  = Bestelldatum
+  | Lieferdatum
+  | SortStatus
+  | Kunde
+  | SortBestelltyp
+
+
+type Leave = GeheZuDetails Int
+
 
 lieferStatus : Lieferung -> Maybe Status
 lieferStatus {bestellungen, inPapierkorb} =
@@ -39,11 +69,13 @@ lieferStatus {bestellungen, inPapierkorb} =
       Just _  -> Nothing
       Nothing -> Just status
 
+
 lieferungLeer : Lieferung -> Bool
 lieferungLeer lieferung =
   lieferung.lieferdatum == Datum.DatumStr ""
   && lieferung.kundenname == ""
   && lieferung.bestellungen == []
+
 
 ---------------------------------------------------------------------
 -------------------------- UPDATE ---------------------------------
@@ -55,71 +87,49 @@ type Msg
   | ChangeBFilter Bestelltyp Bool
   | ChangePapFilter Bool
 
-update : Msg -> Model -> (Model, Cmd msg)
+
+update : Msg -> Model -> (Either Leave Model, Cmd msg)
 update msg model =
   case msg of
     NeueLieferung ->
-      ( { model
-        | übersichtZustand =
-            let curr = model.übersichtZustand
-            in
-              { curr
-              | neueLieferungAngefordert = True
-              }
-        }
-      , if model.übersichtZustand.neueLieferungAngefordert
+      ( Right
+          { model
+          | neueLieferungAngefordert = True
+          }
+      , if model.neueLieferungAngefordert
         then Cmd.none
         else ToServer.send ToServer.neueLieferung
       )
     _ -> (updateNoCmd msg model, Cmd.none)
 
-updateNoCmd : Msg -> Model -> Model
+
+updateNoCmd : Msg -> Model -> Either Leave Model
 updateNoCmd msg model =
   case msg of
     ZeigeDetails id ->
+      Left (GeheZuDetails id)
+    ChangeSort sortby -> Right
       { model
-      | ansicht =
-          Details
-            { liefer_id = id
-            , modus = Details.NormalAnsicht
-            }
+      | sortby =
+          if sortby == model.sortby.kategorie
+            then { kategorie = sortby, vorwärts = not model.sortby.vorwärts}
+            else { kategorie = sortby, vorwärts = True}
       }
-    ChangeSort sortby ->
+    ChangeBFilter btyp active -> Right
       { model
-      | übersichtZustand =
-          let curr = model.übersichtZustand
-          in
-            { curr
-            | sortby =
-                if sortby == curr.sortby.kategorie
-                  then { kategorie = sortby, vorwärts = not curr.sortby.vorwärts}
-                  else { kategorie = sortby, vorwärts = True}
-            }
+      | anzuzeigendeBtypen =
+          List.filter (\b -> b /= btyp) model.anzuzeigendeBtypen
+          ++
+          if active
+            then [btyp]
+            else []
       }
-    ChangeBFilter btyp active ->
+    ChangePapFilter active -> Right
       { model
-      | übersichtZustand =
-          let curr = model.übersichtZustand
-          in
-            { curr
-            | anzuzeigendeBtypen =
-                List.filter (\b -> b /= btyp) curr.anzuzeigendeBtypen
-                ++
-                if active
-                  then [btyp]
-                  else []
-            }
+      | zeigePapierkorb = active
       }
-    ChangePapFilter active ->
-      { model
-      | übersichtZustand =
-          let curr = model.übersichtZustand
-          in
-            { curr
-            | zeigePapierkorb = active
-            }
-      }
-    _ -> model
+    _ -> Right model
+
 
 ---------------------------------------------------------------------------
 ------------------------ VIEW ---------------------------------------------
@@ -128,13 +138,14 @@ type alias Elem var = Element Stil var Msg
 type alias Attr var = Attribute var Msg
 type alias Attrs var = List (Attr var)
 
-view : Model -> Elem var
-view model =
+
+view : Read -> Model -> Elem var
+view read model =
   el Stil.Neutral [center, spacin 20] <| column Stil.Neutral [spacin 10] <|
     let
       space = spacin 10
       columnSizes = [110, 240, 200, 200, 100]
-      currSortby = model.übersichtZustand.sortby
+      currSortby = model.sortby
       sortButton sortby txt =
         let
           arrow =
@@ -143,7 +154,7 @@ view model =
               else ""
         in button Stil.SortButton [center, onClick (ChangeSort sortby)] (text (txt ++ arrow))
     in
-      [ viewFilterCheckboxes model.übersichtZustand
+      [ viewFilterCheckboxes model
       , Tab.reihe [space] columnSizes
           [ sortButton SortBestelltyp "Bestelltyp"
           , sortButton Kunde "Kunde"
@@ -156,9 +167,9 @@ view model =
       ]
       ++ (List.map (lieferungReihe space columnSizes) <|
             let
-              btypActive l = List.member l.bestelltyp model.übersichtZustand.anzuzeigendeBtypen
+              btypActive l = List.member l.bestelltyp model.anzuzeigendeBtypen
               pap l =
-                if model.übersichtZustand.zeigePapierkorb
+                if model.zeigePapierkorb
                   then True
                   else
                     not <| inPapierkorbBool l
@@ -166,9 +177,10 @@ view model =
                 List.filter
                   (\l -> pap l && btypActive l
                   )
-                  model.lieferungen
+                  read.lieferungen
             in sortiere currSortby filtered
          )
+
 
 viewFilterCheckboxes { anzuzeigendeBtypen, zeigePapierkorb }=
   row Stil.Neutral [ spacin 20 ] <|
@@ -176,6 +188,7 @@ viewFilterCheckboxes { anzuzeigendeBtypen, zeigePapierkorb }=
     , viewBFilterCheckboxes anzuzeigendeBtypen
     , viewPapFilterCheckbox zeigePapierkorb
     ]
+
 
 viewBFilterCheckboxes anzuzeigendeBtypen  =
   let
@@ -190,6 +203,7 @@ viewBFilterCheckboxes anzuzeigendeBtypen  =
     row Stil.Neutral [spacin 20 ] <|
       List.map checkbox [Merchingen,Adelsheim,Partyservice]
 
+
 viewPapFilterCheckbox zeigePapierkorb =
   Input.checkbox Stil.Neutral [spacin 10]
     { onChange = ChangePapFilter
@@ -197,6 +211,7 @@ viewPapFilterCheckbox zeigePapierkorb =
     , label = el Stil.Neutral [] <| text "Papierkorb"
     , options = []
     }
+
 
 lieferungReihe : Attr var -> List Float -> Formatiert var -> Elem var
 lieferungReihe space columnSizes {lieferung,lieferdatum,bestelldatum} =
@@ -209,17 +224,21 @@ lieferungReihe space columnSizes {lieferung,lieferdatum,bestelldatum} =
     , viewStatus (lieferStatus lieferung)
     ]
 
+
 textCenter = el Stil.Neutral [] << el Stil.Neutral [verticalCenter,center] << text
+
 
 viewStatus status =
   el (Stil.Stat status) [] <| el Stil.Neutral [verticalCenter,center] <|
     text <| statusString status
+
 
 type alias Formatiert var =
   { lieferung : Lieferung
   , lieferdatum : Elem var
   , bestelldatum : Elem var
   }
+
 
 -- formatiere : Sortby -> List Lieferung -> List (Formatiert var)
 -- formatiere sortby lieferungen =
@@ -238,6 +257,7 @@ withDayColors getDate getEl setEl lieferungen =
     (Days.farbSegemente <| List.map getDate lieferungen)
     (List.map formatDefault lieferungen)
 
+
 formatDefault : Lieferung -> Formatiert var
 formatDefault lieferung =
   { lieferung = lieferung
@@ -248,6 +268,7 @@ formatDefault lieferung =
   , bestelldatum =
       textCenter (Datum.format <| Datum.Datum lieferung.bestelldatum)
   }
+
 
 sortiere : Sortby -> List Lieferung -> List (Formatiert var)
 sortiere {vorwärts,kategorie} lieferungen =

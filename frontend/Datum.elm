@@ -24,15 +24,15 @@ parse : String -> Model
 parse str =
   str
   |> String.toLower
-  |> Regex.replace Regex.All (Regex.regex "uhr") (always "")
+  |> Regex.replace Regex.All (Regex.regex "uhr")  (always "")
   |> Regex.replace Regex.All (Regex.regex "märz") (always "march")
-  |> Regex.replace Regex.All (Regex.regex "mär") (always "march")
-  |> Regex.replace Regex.All (Regex.regex "mä") (always "march")
-  |> Regex.replace Regex.All (Regex.regex "dez") (always "dec")
-  |> Regex.replace Regex.All (Regex.regex "mai") (always "may")
+  |> Regex.replace Regex.All (Regex.regex "mär")  (always "march")
+  |> Regex.replace Regex.All (Regex.regex "mä")   (always "march")
+  |> Regex.replace Regex.All (Regex.regex "dez")  (always "dec")
+  |> Regex.replace Regex.All (Regex.regex "mai")  (always "may")
   |> Regex.replace Regex.All (Regex.regex "juni") (always "june")
   |> Regex.replace Regex.All (Regex.regex "juli") (always "july")
-  |> Regex.replace Regex.All (Regex.regex "ok") (always "oc")
+  |> Regex.replace Regex.All (Regex.regex "ok")   (always "oc")
   |> String.map
       (\char ->
           case char of
@@ -78,7 +78,12 @@ format model =
         format = String.split "%" "%. % %, %:% Uhr"
       in String.concat <| List.map2 (++) format zahlen
 
-type alias TextInput variation = Stil -> List (Attribute variation Msg) -> Input.Text Stil variation Msg -> Element Stil variation Msg
+type alias TextInput variation =
+  Stil
+  -> List (Attribute variation Msg)
+  -> Input.Text Stil variation Msg
+  -> Element Stil variation Msg
+
 textInput : TextInput var -> Stil -> Attrs var -> String -> (String -> Msg) -> Elem var
 textInput inputElement stil attrs content onChange =
   inputElement stil attrs
