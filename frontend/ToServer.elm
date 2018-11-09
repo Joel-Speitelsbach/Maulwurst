@@ -1,12 +1,12 @@
 module ToServer exposing (..)
 
-import Json.Encode as Json
-import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
+import CommonTypes exposing (..)
 import Date exposing (Date)
 import Datum
-import WebSocket
+import Json.Encode as Json
 import Local
+import WebSocket
 
 
 -- Nachrichten an Server

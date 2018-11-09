@@ -1,8 +1,8 @@
 module DayColors exposing (..)
 
-import Stil exposing (Stil)
-import Element exposing (Element)
 import Date exposing (Date)
+import Element exposing (Element)
+import Stil exposing (Stil)
 
 type alias Elem var msg = Element Stil var msg
 

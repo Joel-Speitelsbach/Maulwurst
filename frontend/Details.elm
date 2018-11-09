@@ -1,18 +1,18 @@
 module Details exposing (..)
 
-import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
-import Datum
+import CommonTypes exposing (..)
 import Date exposing (Date)
+import Datum
 import Element exposing (..)
-import Element.Input as Input
-import Element.Events exposing (..)
 import Element.Attributes exposing (..)
+import Element.Events exposing (..)
+import Element.Input as Input
 import Html exposing (Html)
 import Stil exposing (Stil, scale, spacin, pading, pxx, vergr)
-import ToServer
 import Tabelle as Tab
 import Time exposing (minute)
+import ToServer
 
 
 ----------------------------------------------------------------------------

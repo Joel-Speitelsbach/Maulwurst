@@ -1,22 +1,19 @@
 module Übersicht exposing (..)
 
+import CommonnTypes exposing (..)
+import CommonTypes exposing (..)
+import Data.Either exposing (..)
+import Date exposing (Date)
+import Datum
+import DayColors as Days
 import Element exposing (..)
 import Element.Attributes exposing (..)
 import Element.Events exposing (..)
 import Element.Input as Input
-import Date exposing (Date)
-import Stil exposing (Stil, scale, spacin, pading, pxx)
-import CommonTypes exposing (..)
-import CommonnTypes exposing (..)
-import Tabelle as Tab
 import Html exposing (Html)
+import Stil exposing (Stil, scale, spacin, pading, pxx)
+import Tabelle as Tab
 import ToServer as ToServer
-import Datum
-import DayColors as Days
-import Data.Either exposing (..)
-
---temporär
-import Details
 
 
 -----------------------------------------------------------------------------

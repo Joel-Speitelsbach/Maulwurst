@@ -1,12 +1,12 @@
 module Stil exposing (..)
 
+import Color exposing (..)
 import Element.Attributes as Attr
 import Style
-import Style.Color as Color
-import Style.Scale as Scale
-import Style.Font as Font
 import Style.Border as Border
-import Color exposing (..)
+import Style.Color as Color
+import Style.Font as Font
+import Style.Scale as Scale
 
 import CommonnTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 

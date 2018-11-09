@@ -1,10 +1,10 @@
 module FromServer exposing (..)
 
-import Json.Decode as Json
-import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
+import CommonTypes exposing (..)
 import Date exposing (Date)
 import Datum
+import Json.Decode as Json
 
 type ServerMsg
   = ServerLöscheBestellung Int Int

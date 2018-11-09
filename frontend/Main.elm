@@ -1,10 +1,10 @@
 module Main exposing (..)
 
-import Data.Either exposing (..)
-import CommonTypes exposing (..)
 import CommonnTypes exposing (..)
-import Details
+import CommonTypes exposing (..)
+import Data.Either exposing (..)
 import Date exposing (Date)
+import Details
 import Element exposing (..)
 import Element.Attributes exposing (..)
 import FromServer as FromServer exposing (ServerMsg(..))
@@ -13,8 +13,8 @@ import Local
 import Platform.Sub as Sub
 import Stil exposing (pading,Stil)
 import Time exposing (Time, minute)
-import WebSocket
 import Übersicht
+import WebSocket
 
 main = Html.program {view=view, init=init, update=update, subscriptions=subscriptions}
 
@@ -23,10 +23,10 @@ main = Html.program {view=view, init=init, update=update, subscriptions=subscrip
 ----------------------- MODEL ------------------------------------------------
 
 type alias Model =
-  { lieferungen : List Lieferung
-  , übersichtZustand : Übersicht.Model
-  , ansicht : Ansicht
-  , jetztM : Maybe Time
+  { lieferungen           : List Lieferung
+  , übersichtZustand      : Übersicht.Model
+  , ansicht               : Ansicht
+  , jetztM                : Maybe Time
   , letzteServerNachricht : Time
   }
 

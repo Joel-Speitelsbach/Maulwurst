@@ -3,8 +3,8 @@ module Datum exposing (..)
 import Date exposing (Date)
 import Element as El exposing (..)
 import Element.Input as Input
-import Stil exposing (Stil, scale, spacin, pading, pxx )
 import Regex
+import Stil exposing (Stil, scale, spacin, pading, pxx )
 
 -- MODEL
 type Model

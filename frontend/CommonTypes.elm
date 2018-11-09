@@ -1,7 +1,7 @@
 module CommonTypes exposing (..)
 
-import Date exposing (Date)
 import CommonnTypes exposing (..)
+import Date exposing (Date)
 import Datum
 
 type alias Lieferung =
