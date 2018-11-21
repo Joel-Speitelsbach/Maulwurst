@@ -11,7 +11,7 @@ import Element.Attributes exposing (..)
 import Element.Events exposing (..)
 import Element.Input as Input
 import Html exposing (Html)
-import Stil exposing (Stil, scale, spacin, pading, pxx)
+import Stil exposing (Stil, scale, spacin, pading, pxx, vergr)
 import Tabelle as Tab
 import ToServer as ToServer
 
@@ -32,10 +32,23 @@ type alias Model =
   }
 
 
+init : Model
+init =
+  { neueLieferungAngefordert = False
+  , sortby =
+      { kategorie = Bestelldatum
+      , vorwärts = True
+      }
+  , anzuzeigendeBtypen = [Merchingen,Partyservice,Adelsheim]
+  , zeigePapierkorb = False
+  }
+
+
 type alias Sortby =
   { kategorie : SortCategory
   , vorwärts : Bool
   }
+
 
 type SortCategory
   = Bestelldatum
@@ -43,9 +56,6 @@ type SortCategory
   | SortStatus
   | Kunde
   | SortBestelltyp
-
-
-type Leave = GeheZuDetails Int
 
 
 lieferStatus : Lieferung -> Maybe Status
@@ -78,14 +88,14 @@ lieferungLeer lieferung =
 -------------------------- UPDATE ---------------------------------
 
 type Msg
-  = ZeigeDetails Int
-  | NeueLieferung
+  = NeueLieferung
   | ChangeSort SortCategory
   | ChangeBFilter Bestelltyp Bool
   | ChangePapFilter Bool
+  | GeheZu Programmansicht
 
 
-update : Msg -> Model -> (Either Leave Model, Cmd msg)
+update : Msg -> Model -> (Either Programmansicht Model, Cmd msg)
 update msg model =
   case msg of
     NeueLieferung ->
@@ -100,11 +110,10 @@ update msg model =
     _ -> (updateNoCmd msg model, Cmd.none)
 
 
-updateNoCmd : Msg -> Model -> Either Leave Model
+updateNoCmd : Msg -> Model -> Either Programmansicht Model
 updateNoCmd msg model =
   case msg of
-    ZeigeDetails id ->
-      Left (GeheZuDetails id)
+    GeheZu ansicht -> Left ansicht
     ChangeSort sortby -> Right
       { model
       | sortby =
@@ -131,14 +140,10 @@ updateNoCmd msg model =
 ---------------------------------------------------------------------------
 ------------------------ VIEW ---------------------------------------------
 
-type alias Elem var = Element Stil var Msg
-type alias Attr var = Attribute var Msg
-type alias Attrs var = List (Attr var)
 
-
-view : Read -> Model -> Elem var
+view : Read -> Model -> Elem Msg
 view read model =
-  el Stil.Neutral [center, spacin 20] <| column Stil.Neutral [spacin 10] <|
+  el Stil.Neutral [center, spacin 20] <| column Stil.Neutral [spacin 10, paddingBottom (vergr 20)] <|
     let
       space = spacin 10
       columnSizes = [110, 240, 200, 200, 100]
@@ -151,7 +156,8 @@ view read model =
               else ""
         in button Stil.SortButton [center, onClick (ChangeSort sortby)] (text (txt ++ arrow))
     in
-      [ viewFilterCheckboxes model
+      [ viewNavigationBar
+      , viewFilterCheckboxes model
       , Tab.reihe [space] columnSizes
           [ sortButton SortBestelltyp "Bestelltyp"
           , sortButton Kunde "Kunde"
@@ -179,9 +185,15 @@ view read model =
          )
 
 
-viewFilterCheckboxes { anzuzeigendeBtypen, zeigePapierkorb }=
+viewNavigationBar : Elem Msg
+viewNavigationBar =
+  flip (button Stil.ButtonSmall) (text "Zur Artikelübersicht -->") <|
+    [ onClick <| GeheZu AnsichtArtikelübersicht, height (pxx 30) ]
+
+
+viewFilterCheckboxes { anzuzeigendeBtypen, zeigePapierkorb } =
   row Stil.Neutral [ spacin 20 ] <|
-    [ text "Zeige folgende an: "
+    [ text "Zeige Orte "
     , viewBFilterCheckboxes anzuzeigendeBtypen
     , viewPapFilterCheckbox zeigePapierkorb
     ]
@@ -210,16 +222,17 @@ viewPapFilterCheckbox zeigePapierkorb =
     }
 
 
-lieferungReihe : Attr var -> List Float -> Formatiert var -> Elem var
-lieferungReihe space columnSizes {lieferung,lieferdatum,bestelldatum} =
-  button Stil.HiddenButton [onClick (ZeigeDetails lieferung.id)] <| Tab.reihe [space] columnSizes
-    [ el (Stil.Btyp lieferung.bestelltyp) [] << el Stil.Neutral [verticalCenter,center] << text <|
-        bestelltypString lieferung.bestelltyp
-    , textCenter (lieferung.kundenname)
-    , bestelldatum
-    , lieferdatum
-    , viewStatus (lieferStatus lieferung)
-    ]
+lieferungReihe : Attr Msg -> List Float  -> Formatiert                           -> Elem Msg
+lieferungReihe   space       columnSizes    {lieferung,lieferdatum,bestelldatum}    =
+  button Stil.HiddenButton [onClick (GeheZu <| AnsichtDetails lieferung.id)] <|
+    Tab.reihe [space] columnSizes
+      [ el (Stil.Btyp lieferung.bestelltyp) [] << el Stil.Neutral [verticalCenter,center] << text <|
+          bestelltypString lieferung.bestelltyp
+      , textCenter (lieferung.kundenname)
+      , bestelldatum
+      , lieferdatum
+      , viewStatus (lieferStatus lieferung)
+      ]
 
 
 textCenter = el Stil.Neutral [] << el Stil.Neutral [verticalCenter,center] << text
@@ -230,54 +243,53 @@ viewStatus status =
     text <| statusString status
 
 
-type alias Formatiert var =
-  { lieferung : Lieferung
-  , lieferdatum : Elem var
-  , bestelldatum : Elem var
+type alias Formatiert =
+  { lieferung    : Lieferung
+  , lieferdatum  : Elem Msg
+  , bestelldatum : Elem Msg
   }
 
 
--- formatiere : Sortby -> List Lieferung -> List (Formatiert var)
--- formatiere sortby lieferungen =
-
-withDayColors
-  :  (Lieferung -> Maybe Date)
-  -> (Formatiert var -> Elem var)
-  -> (Elem var -> Formatiert var -> Formatiert var)
-  -> List Lieferung
-  -> List (Formatiert var)
-withDayColors getDate getEl setEl lieferungen =
+withDayColors :
+  { getDate     : Lieferung  -> Maybe Date
+  , getEl       : Formatiert -> Elem Msg
+  , setEl       : Elem Msg   -> Formatiert -> Formatiert
+  , lieferungen : List Lieferung
+  }
+  -> List Formatiert
+withDayColors { getDate, getEl, setEl, lieferungen } =
   List.map2
     (\farbStil fmt ->
         setEl (el farbStil [] <| getEl fmt) fmt
     )
-    (Days.farbSegemente <| List.map getDate lieferungen)
+    (Days.farbSegmente <| List.map getDate lieferungen)
     (List.map formatDefault lieferungen)
 
 
-formatDefault : Lieferung -> Formatiert var
+formatDefault : Lieferung -> Formatiert
 formatDefault lieferung =
   { lieferung = lieferung
   , lieferdatum =
       let
-        txt = Datum.format lieferung.lieferdatum
+        txt = Datum.toStr lieferung.lieferdatum
       in textCenter txt
   , bestelldatum =
-      textCenter (Datum.format <| Datum.Datum lieferung.bestelldatum)
+      textCenter (Datum.toStr <| Datum.Datum lieferung.bestelldatum)
   }
 
 
-sortiere : Sortby -> List Lieferung -> List (Formatiert var)
+sortiere : Sortby -> List Lieferung -> List Formatiert
 sortiere {vorwärts,kategorie} lieferungen =
   let
     sortiert =
       case kategorie of
         Bestelldatum ->
           withDayColors
-            (.bestelldatum >> Just)
-            .bestelldatum
-            (\el fmt -> { fmt | bestelldatum = el}) <|
-            List.sortBy (.bestelldatum >> Date.toTime >> (\t -> -t)) lieferungen
+            { getDate     = .bestelldatum >> Just
+            , getEl       = .bestelldatum
+            , setEl       = \el fmt -> { fmt | bestelldatum = el }
+            , lieferungen = List.sortBy (.bestelldatum >> Date.toTime >> (\t -> -t)) lieferungen
+            }
         Lieferdatum ->
           let
             by lief =
@@ -294,14 +306,16 @@ sortiere {vorwärts,kategorie} lieferungen =
                 lieferungen
           in
             withDayColors
-              (.lieferdatum >> \dat ->
-                case dat of
-                  Datum.Datum dat -> Just dat
-                  Datum.DatumStr _ -> Nothing
-              )
-              .lieferdatum
-              (\el fmt -> { fmt | lieferdatum = el})
-              (List.sortBy by filtered)
+              { getDate     =
+                  .lieferdatum >> \dat ->
+                    case dat of
+                      Datum.Datum dat -> Just dat
+                      Datum.DatumStr _ -> Nothing
+
+              , getEl       = .lieferdatum
+              , setEl       = (\el fmt -> { fmt | lieferdatum = el})
+              , lieferungen = (List.sortBy by filtered)
+              }
         SortStatus ->
           let
             by l =

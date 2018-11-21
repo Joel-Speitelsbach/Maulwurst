@@ -91,6 +91,8 @@ encodePartyserviceData party =
     , ("_telefon",           Json.string party.telefon)
     , ("_veranstaltungsort", Json.string party.veranstaltungsort)
     , ("_personenanzahl",    Json.string party.personenanzahl)
+    , ("_lieferservice",     Json.bool   party.lieferservice)
+    , ("_mitChafingDish",    Json.bool   party.mitChafingDish)
     ]
 
 encodeEitherDate : Datum.Model -> Json.Value

@@ -3,15 +3,13 @@ module Tabelle exposing (..)
 import Element exposing (..)
 import Element.Attributes exposing (..)
 import Stil exposing (pxx,Stil)
+import CommonTypes exposing (..)
 
-type alias Elem var msg = Element Stil var msg
-type alias Attrs var msg = List (Attribute var msg)
+reihe       = reiheHeight 25.888
+reiheHeight = reiheStil   Stil.Neutral
 
-reihe attrs = reiheHeight attrs 25.888
-reiheHeight = reiheStil Stil.Neutral
-
-reiheStil : Stil -> Attrs var msg -> Float -> List Float -> List (Elem var msg) -> Elem var msg
-reiheStil stil attrs height sizes columns =
+reiheStil : Stil -> Float -> Attrs msg -> List Float -> List (Elem msg) -> Elem msg
+reiheStil   stil    height   attrs        sizes         columns            =
   let
     addColNumber = List.indexedMap (,)
     indexedList = addColNumber columns
@@ -30,13 +28,13 @@ reiheStil stil attrs height sizes columns =
       }
 
 tableTransposed
-         : style
-        -> List (Attribute variation msg)
-        -> List Float
-        -> Float
-        -> List Float
-        -> List (List (Element style variation msg))
-        -> Element style variation msg
+   : style
+  -> List (Attribute variation msg)
+  -> List Float
+  -> Float
+  -> List Float
+  -> List (List (Element style variation msg))
+  -> Element style variation msg
 tableTransposed style attrs initRows rowSize columnSizes matrix =
   let
     height = List.length matrix

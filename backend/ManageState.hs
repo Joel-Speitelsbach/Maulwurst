@@ -56,8 +56,9 @@ fügeNeueLieferungHinzu millisecs lieferungenT broadcastChannel =
     lieferungen <- readTVar lieferungenT
     let
       newID = (+1) $ maximum $ (0:) $ map _lid lieferungen
-      pdata = PartyserviceData "" "" "" ""
-      neueLieferung = Lieferung millisecs (Left "") "" Partyservice pdata Nothing newID []
+      pdata = PartyserviceData "" "" "" "" False False
+      neueLieferung = Lieferung millisecs (Left "") "" Partyservice
+                                pdata Nothing newID []
     writeTVar lieferungenT (neueLieferung : lieferungen)
     writeTChan broadcastChannel $ [A.encode neueLieferung]
     return newID

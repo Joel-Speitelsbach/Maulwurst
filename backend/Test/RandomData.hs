@@ -19,7 +19,7 @@ main = do
 genLieferungen :: IO [Lieferung]
 genLieferungen = do
   now <- getEpochMillisecs
-  evalRandIO $ mapM (rLieferung now) [1..50]
+  evalRandIO $ mapM (rLieferung now) [1..30]
 
 
 rLieferung :: MonadRandom m => Double  -> Int -> m Lieferung
@@ -59,6 +59,8 @@ rPartyserviceData                     =
     <*> rNumStr (100000, 999999999999) -- _telefon           :: String
     <*> rName (9, 15)                  -- _veranstaltungsort :: String
     <*> rNumStr (5,30)                 -- _personenanzahl    :: String
+    <*> getRandom                      -- _lieferservice     :: Bool
+    <*> getRandom                      -- _mitChafingDish    :: Bool
 
 
 rTimeOffsetLiefer :: MonadRandom m => m Double
@@ -76,12 +78,20 @@ rTimeOffsetBestell = getRandomR
 rBestellung :: MonadRandom m => Int -> m Bestellung
 rBestellung                     bid    =
   Bestellung
-    <$> rNumStr (1,99) -- _plu
-    <*> rName (5,14)   -- _artikelbezeichnung
-    <*> rMenge         -- _menge
-    <*> rStatus        -- _status
-    <*> rText (3,7)   -- _freitext
-    <*> pure bid       -- _bid
+    <$> rNumStr (1,99)      -- _plu
+    <*> rArtikelbezeichnung -- _artikelbezeichnung
+    <*> rMenge              -- _menge
+    <*> rStatus             -- _status
+    <*> rText (3,7)         -- _freitext
+    <*> pure bid            -- _bid
+
+
+rArtikelbezeichnung :: MonadRandom m => m String
+rArtikelbezeichnung =
+    (++) <$> oneOf vorne <*> oneOf hinten
+  where
+    hinten = ["wurst", "schinken", "salami", "taschen"]
+    vorne = ["Maul", "Dosen", "Hinter", "Blut", "Käse", "Räucher", "Gemüse"]
 
 
 rNumStr :: MonadRandom m => (Int,Int) -> m String
@@ -143,7 +153,7 @@ rWordFirst                     first     (lMin, lMax)    = do
 
 
 
---misc
+-- MISC
 
 
 oneOf :: MonadRandom m => [a] -> m a

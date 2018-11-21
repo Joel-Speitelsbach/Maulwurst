@@ -13,37 +13,35 @@ import Stil exposing (Stil, scale, spacin, pading, pxx, vergr)
 import Tabelle as Tab
 import Time exposing (minute)
 import ToServer
+import Druckansicht
 
 
 ----------------------------------------------------------------------------
 ----------------------- MODEL ------------------------------------------------
 
-type Model
-  = Leave
-  | NotLeave
-      { lieferungen : List Lieferung
-      , ansicht     : Ansicht
-      }
-
-type alias Ansicht =
-  { liefer_id : Int
-  , modus : Modus
+type alias Model =
+  { ansicht     : Ansicht
   }
 
-type Modus
+
+type Ansicht
   = NormalAnsicht
   | Reloading
   | LöschDialog
+  | Druckansicht
 
-checkLieferung : Lieferung -> Bool
+
+init : Model
+init = { ansicht = NormalAnsicht }
+
+
+checkLieferung : Lieferung -> { ok : Bool}
 checkLieferung lieferung =
-  case lieferung.lieferdatum of
-    Datum.Datum    _ -> True
-    Datum.DatumStr _ -> False
+  { ok = case lieferung.lieferdatum of
+           Datum.Datum    _ -> True
+           Datum.DatumStr _ -> False
+  }
 
-ixLieferung lieferungen lieferungsId =
-  List.filter (\l -> l.id == lieferungsId) lieferungen
-  |> List.head
 
 leereParty : PartyserviceData
 leereParty =
@@ -51,6 +49,8 @@ leereParty =
   , telefon           = ""
   , veranstaltungsort = ""
   , personenanzahl    = ""
+  , lieferservice     = False
+  , mitChafingDish    = False
   }
 
 
@@ -62,83 +62,94 @@ type Msg
   | StopReloading
   | LöscheBestellung Lieferung Bestellung
   | Change Lieferung
+  | LieferdatumMsg Datum.Msg
   | NeueBestellung Lieferung
   | TogglePapierkorb Lieferung
   | Reload
   | DoNothing
   | PapTatsächlich Lieferung Bool
+  | Drucke
+  | DruckansichtMsg Druckansicht.Msg
 
-type alias Elem variation = Element Stil variation Msg
-type alias Attrs variation = List (Attribute variation Msg)
 
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
-  case model of
-    Leave -> (Leave, Cmd.none)
-    NotLeave model_ ->
-      case msg of
-        Change lieferung ->
-          ( NotLeave model_
-          , ToServer.send (ToServer.updateLieferung lieferung)
-          )
-        TogglePapierkorb lieferung ->
-          if inPapierkorbBool lieferung
-          then
-            ( NotLeave model_
-            , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
-            )
-          else
-            ( ändereModus LöschDialog model
-            , Cmd.none
-            )
-        PapTatsächlich lieferung bool ->
-          if bool
-          then ( Leave
-               , ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
-               )
-          else ( NotLeave model_
-               , Cmd.none
-               )
-        NeueBestellung lieferung ->
-          ( NotLeave model_
-          , ToServer.send (ToServer.neueBestellung lieferung.id)
-          )
-        LöscheBestellung lieferung bestellung ->
-          ( NotLeave model_
-          , ToServer.send (ToServer.löscheBestellung lieferung.id bestellung.id)
-          )
-        StopReloading ->
-          ( ändereModus NormalAnsicht model
-          , Cmd.none
-          )
-        ZuÜbersicht ->
-          ( if
-              ixLieferung model_.lieferungen model_.ansicht.liefer_id
-              |> Maybe.map checkLieferung
-              |> Maybe.withDefault True
-            then Leave
-            else NotLeave model_
-          , Cmd.none
-          )
-        DoNothing -> (NotLeave model_, Cmd.none)
-        Reload ->
-          ( ändereModus Reloading model
-          , Cmd.none
-          )
+type Update
+  = NotLeave Model
+  | Leave
 
-ändereModus : Modus -> Model -> Model
-ändereModus modus model_ =
-  case model_ of
-    NotLeave model -> NotLeave
-      { model
-      | ansicht =
-          let ansicht = model.ansicht
-          in
-            { ansicht
-            | modus = modus
+
+update :
+  { msg : Msg
+  , model : Model
+  , lieferung : Lieferung
+  , today : Date
+  }
+  -> (Update, Cmd Msg)
+update { msg, model, lieferung, today } =
+  case msg of
+    Change geänderte_lieferung ->
+      ( NotLeave model
+      , ToServer.send (ToServer.updateLieferung geänderte_lieferung)
+      )
+    LieferdatumMsg msg ->
+      ( NotLeave model
+      , ToServer.send <|
+          ToServer.updateLieferung
+            { lieferung
+            | lieferdatum =
+                Datum.update
+                  { msg = msg
+                  , model = lieferung.lieferdatum
+                  , today = today
+                  }
             }
-      }
-    Leave -> Leave
+      )
+    TogglePapierkorb lieferung ->
+      if inPapierkorbBool lieferung
+      then
+        ( NotLeave model
+        , ToServer.send <| ToServer.papierkorbLieferung lieferung.id False
+        )
+      else
+        ( NotLeave { model | ansicht = LöschDialog }
+        , Cmd.none
+        )
+    PapTatsächlich lieferung bool ->
+      if bool
+      then ( Leave
+           , ToServer.send <| ToServer.papierkorbLieferung lieferung.id True
+           )
+      else ( NotLeave model
+           , Cmd.none
+           )
+    NeueBestellung lieferung ->
+      ( NotLeave model
+      , ToServer.send (ToServer.neueBestellung lieferung.id)
+      )
+    LöscheBestellung lieferung bestellung ->
+      ( NotLeave model
+      , ToServer.send (ToServer.löscheBestellung lieferung.id bestellung.id)
+      )
+    StopReloading ->
+      ( NotLeave { model | ansicht = NormalAnsicht }
+      , Cmd.none
+      )
+    ZuÜbersicht ->
+      ( if (checkLieferung lieferung).ok
+        then Leave
+        else NotLeave model
+      , Cmd.none
+      )
+    DoNothing -> (NotLeave model, Cmd.none)
+    Reload ->
+      ( NotLeave { model | ansicht = Reloading }
+      , Cmd.none
+      )
+    Drucke ->
+      ( NotLeave { model | ansicht = Druckansicht }
+      , Cmd.none
+      )
+    DruckansichtMsg () -> (NotLeave model, Cmd.none)
+
 
 updateBestellung : Lieferung -> (val -> Bestellung) -> val -> Msg
 updateBestellung lieferung onString val =
@@ -154,9 +165,9 @@ updateBestellung lieferung onString val =
 --------------------------------------------------------------------------------
 ------------------------ SUBSCRIPTIONS ------------------------------------------
 
-subscriptions : Ansicht -> Sub Msg
-subscriptions ansicht =
-    if ansicht.modus == Reloading
+subscriptions : { model : Model } -> Sub Msg
+subscriptions { model } =
+    if model.ansicht == Reloading
     then Time.every 10 <| (\_ -> StopReloading)
     else Sub.none
 
@@ -164,17 +175,19 @@ subscriptions ansicht =
 ----------------------------------------------------------------------------
 ------------------------------ VIEW ----------------------------------------
 
-view {ansicht, lieferungen} =
-  case ansicht.modus of
-    Reloading -> Just (text "reloading")
-    LöschDialog ->
-      ixLieferung lieferungen ansicht.liefer_id
-      |> Maybe.map viewLöschDialog
-    _ ->
-      ixLieferung lieferungen ansicht.liefer_id
-      |> Maybe.map viewLieferung
-      |> Maybe.map (el Stil.Neutral [center, spacin 20])
+view { ansicht, lieferung } =
+  case ansicht of
+    Reloading -> text "reloading"
+    LöschDialog -> viewLöschDialog lieferung
+    NormalAnsicht ->
+        viewLieferung lieferung
+        |> el Stil.Neutral [center, spacin 20]
+    Druckansicht ->
+        Druckansicht.view { lieferung = lieferung }
+        |> Element.map DruckansichtMsg
 
+
+viewLieferung : Lieferung -> Elem Msg
 viewLieferung lieferung =
   column Stil.Neutral [spacin 20] <|
       [ viewBestellTyp lieferung
@@ -183,23 +196,22 @@ viewLieferung lieferung =
           [ text "Kunde:"
           , textfeld lieferung.kundenname <| \str -> Change {lieferung | kundenname = str}
           ]
-      , empty -- lieferdatum
       , if lieferung.bestelltyp == Partyservice
         then viewPartyservice lieferung
         else empty
+      , viewLieferdatum { lieferung = lieferung }
       , viewControlArea lieferung
-      , Element.map
-          (\datumMsg ->
-              Change
-                { lieferung
-                | lieferdatum =
-                    Datum.update datumMsg lieferung.lieferdatum
-                }
-          ) <|
-          Datum.viewPickDate lieferung.lieferdatum
       ]
 
-viewBestellTyp : Lieferung -> Elem var
+
+viewLieferdatum : { lieferung : Lieferung } -> Elem Msg
+viewLieferdatum { lieferung } =
+  Element.map
+    LieferdatumMsg
+    (Datum.viewPickDate { model = lieferung.lieferdatum, label = Just "Lieferdatum:" })
+
+
+viewBestellTyp : Lieferung -> Elem Msg
 viewBestellTyp lieferung =
   Input.radioRow Stil.Neutral [ pading 0, spacin 10, center ]
       { onChange = \btyp ->
@@ -214,6 +226,7 @@ viewBestellTyp lieferung =
           ]
       }
 
+
 btypChoice btypStr =
   let txt = text <| bestelltypString btypStr
   in
@@ -223,20 +236,36 @@ btypChoice btypStr =
           then el (Stil.Btyp btypStr) [] txt
           else el (Stil.Neutral)      [] txt
 
-viewLieferungEintrag lieferung label content changer =
+
+viewLieferungEintrag : Lieferung -> String -> String -> (String -> Lieferung -> Lieferung) -> Elem Msg
+viewLieferungEintrag   lieferung    label     content   changer                               =
   row Stil.Neutral [spacin 20]
     [ text (label ++ ":")
     , textfeld content <| \str -> Change (changer str lieferung)
     ]
 
-partyChanger newParty str lieferung =
+
+partyChanger : (String -> PartyserviceData) -> String -> Lieferung -> Lieferung
+partyChanger   newParty                        str       lieferung    =
   { lieferung
   | partyserviceData = newParty str
   }
 
+
 viewPartyservice : Lieferung -> Elem Msg
 viewPartyservice lieferung =
-  let party = lieferung.partyserviceData
+  let
+    party = lieferung.partyserviceData
+    mkPartyCheckbox arg =
+      Input.checkbox Stil.Neutral []
+        { onChange = \bool -> Change <|
+            { lieferung
+            | partyserviceData = arg.setter bool party
+            }
+        , checked = arg.getter party
+        , label = el Stil.Neutral [] <| text arg.label
+        , options = []
+        }
   in
     column Stil.Neutral [spacin 20] <|
       [ viewLieferungEintrag lieferung "Adresse" party.adresse <|
@@ -247,21 +276,39 @@ viewPartyservice lieferung =
           partyChanger <| \str -> { party | veranstaltungsort = str }
       , viewLieferungEintrag lieferung "Personenanzahl" party.personenanzahl <|
           partyChanger <| \str -> { party | personenanzahl = str }
+      , row Stil.Neutral [] <|
+          [ mkPartyCheckbox
+              { setter = \bool party -> { party | lieferservice = bool }
+              , getter = .lieferservice
+              , label = "Lieferservice"
+              }
+          , mkPartyCheckbox
+              { setter = \bool party -> { party | mitChafingDish = bool }
+              , getter = .mitChafingDish
+              , label = "mit Chafing Dish"
+              }
+          ]
       ]
+
 
 viewControlArea lieferung =
   row Stil.Neutral [spacin 100] <|
     let höhe = height (pxx 70)
     in
       [ column Stil.Neutral [spacin 6, width (fillPortion 3), höhe]
-          [ button Stil.Button [attribute "onClick" "window.print()", height fill, width fill] (text "Drucken")
-          , button Stil.Button [onClick ZuÜbersicht, width fill, height fill] (text "Speichern")
+          [ button Stil.Button
+              [onClick Drucke, height fill, width fill]
+              (text "Drucken")
+          , button Stil.Button
+              [onClick ZuÜbersicht, height fill, width fill]
+              (text "Speichern")
           ]
       , column Stil.Neutral [spacin 6, width (fillPortion 1), höhe]
           [ el Stil.Neutral         [height (fillPortion 5)] empty
           , viewPapierkorbButton lieferung
           ]
       ]
+
 
 viewPapierkorbButton lieferung =
   button (Stil.Stat Nothing)
@@ -272,7 +319,8 @@ viewPapierkorbButton lieferung =
       Nothing -> text "In Papierkorb legen"
       Just _  -> text "Aus dem Papierkorb herausholen"
 
-viewLöschDialog : Lieferung -> Elem var
+
+viewLöschDialog : Lieferung -> Elem Msg
 viewLöschDialog lieferung =
   el Stil.Neutral [center, verticalCenter] <|
     row Stil.Neutral [spacin 90]
@@ -280,16 +328,18 @@ viewLöschDialog lieferung =
       , button Stil.Button [onClick <| PapTatsächlich lieferung False] (text "Behalten")
       ]
 
-viewBestellungTabelle  lieferung=
+
+viewBestellungTabelle lieferung =
   let sizes = [{-80,-} 37,180,80,240]
   in
     column Stil.Neutral [spacin 20] <|
-      [ Tab.reiheStil Stil.TabelleSpaltenName [] 5 sizes [{-empty,-} text "PLU", text "Artikelbezeichnung", text "Menge", text "Freitext"]
+      [ Tab.reiheStil Stil.TabelleSpaltenName 5 [] sizes [{-empty,-} text "PLU", text "Artikelbezeichnung", text "Menge", text "Freitext"]
       , column Stil.Neutral [spacin 20] <|
           List.map (viewBestellung sizes lieferung) lieferung.bestellungen
       , flip (button Stil.ButtonSmall) (text "Artikel hinzufügen") <|
           [ onClick (NeueBestellung lieferung), height (pxx 30) ]
       ]
+
 
 viewBestellung sizes lieferung bestellung =
   let
@@ -299,7 +349,7 @@ viewBestellung sizes lieferung bestellung =
       [ {-el Stil.Neutral [verticalCenter, moveLeft 50] <|
           button Stil.LöschButton [width (pxx <| Maybe.withDefault 50 (List.head sizes)), onClick (LöscheBestellung lieferung bestellung)] (text "Löschen")
       ,-} column Stil.Neutral []
-            [ Tab.reiheHeight [] 52 ({-List.drop 1-} sizes)
+            [ Tab.reiheHeight 52 [] ({-List.drop 1-} sizes)
               [ textfeld bestellung.plu                 <| update (\str -> {bestellung | plu                = str})
               , textfeld bestellung.artikelbezeichnung  <| update (\str -> {bestellung | artikelbezeichnung = str})
               , textfeld bestellung.menge               <| update (\str -> {bestellung | menge              = str})
@@ -319,6 +369,7 @@ viewBestellung sizes lieferung bestellung =
             ]
         ]
 
+
 statusChoice status =
   let txt = text <| statusString <| Just status
   in
@@ -328,20 +379,27 @@ statusChoice status =
           then el (Stil.Stat <| Just status) [] txt
           else el (Stil.Neutral)             [] txt
 
-type alias TextInput variation =
+
+type alias TextInput =
   Stil
-  -> List (Attribute variation Msg)
-  -> Input.Text Stil variation Msg
-  -> Element Stil variation Msg
+  -> Attrs Msg
+  -> Input.Text Stil Never Msg
+  -> Elem Msg
 
-textfeld : String -> (String -> Msg) -> Elem variation
-textfeld = (textInput Input.text Stil.TextField [])
 
-multiline : String -> (String -> Msg) -> Elem variation
+-- MISC
+
+
+textfeld : String -> (String -> Msg) -> Elem Msg
+textfeld = textInput Input.text Stil.TextField []
+
+
+multiline : String -> (String -> Msg) -> Elem Msg
 multiline = textInput Input.multiline Stil.TextField [height fill]
 
-textInput : TextInput var -> Stil -> Attrs var -> String -> (String -> Msg) -> Elem var
-textInput inputElement stil attrs content onChange =
+
+textInput : TextInput    -> Stil -> Attrs Msg -> String -> (String -> Msg) -> Elem Msg
+textInput   inputElement    stil    attrs        content   onChange           =
   inputElement stil attrs
      { onChange = onChange
      , value    = content

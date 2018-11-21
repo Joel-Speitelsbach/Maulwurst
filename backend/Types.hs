@@ -37,6 +37,8 @@ data PartyserviceData = PartyserviceData
   , _telefon           :: String
   , _veranstaltungsort :: String
   , _personenanzahl    :: String
+  , _lieferservice     :: Bool
+  , _mitChafingDish    :: Bool
   } deriving (Show, Eq)
 
 $(Ath.deriveJSON Ath.defaultOptions ''Lieferung)

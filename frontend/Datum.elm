@@ -1,24 +1,69 @@
-module Datum exposing (..)
+module Datum
+  exposing (..)
+  -- exposing
+  --   ( Model(..)
+  --   , update
+  --   , viewPickDate
+  --   , toStr
+  --   )
 
 import Date exposing (Date)
+import Time
 import Element as El exposing (..)
 import Element.Input as Input
 import Regex
 import Stil exposing (Stil, scale, spacin, pading, pxx )
 
+
 -- MODEL
+
 type Model
   = Datum Date
   | DatumStr String
 
+
+init : Model
+init = DatumStr ""
+
+
+
 -- UPDATE
+
 type Msg
   = Change String
 
-update : Msg -> Model -> Model
-update msg _ =
+
+update : { msg : Msg, model : Model, today : Date } -> Model
+update { msg, today } =
   case msg of
-    Change str -> parse str
+    Change str -> parseToday { str = str, today = today }
+
+
+parseToday : { today : Date, str : String } -> Model
+parseToday { today, str } =
+  parseWeekday { str = str }
+  |> Maybe.map
+      (\weekday ->
+          Datum <| nextWeekday { today = today, weekday = weekday })
+  |> Maybe.withDefault (parse str)
+
+
+parseWeekday : { str : String } -> Maybe Date.Day
+parseWeekday { str } =
+  case String.left 2 <| String.toLower str of
+    "mo" -> Just Date.Mon
+    "di" -> Just Date.Tue
+    "tu" -> Just Date.Tue
+    "mi" -> Just Date.Wed
+    "we" -> Just Date.Wed
+    "do" -> Just Date.Thu
+    "th" -> Just Date.Thu
+    "fr" -> Just Date.Fri
+    "sa" -> Just Date.Sat
+    "so" -> Just Date.Sun
+    "su" -> Just Date.Sun
+    _    -> Nothing
+
 
 parse : String -> Model
 parse str =
@@ -37,31 +82,42 @@ parse str =
       (\char ->
           case char of
             '.' -> ','
-            _   -> char
-      )
+            _   -> char)
   |> Date.fromString
   |> Result.map Datum
   |> Result.withDefault (DatumStr str)
 
+
+
 -- VIEW
-type alias Elem var = Element Stil var Msg
-type alias Attrs variation = List (Attribute variation Msg)
 
-viewPickDate : Model -> Elem var
-viewPickDate model = El.row Stil.Neutral [spacin 20]
-    [ text "Lieferdatum:"
-    , let
-        txt = format model
-        istValide =
-          case model of
-            DatumStr _ -> False
-            Datum _ -> True
-      in
-        textInput Input.text (Stil.TextFeld istValide) [] txt Change
-    ]
+type alias Elem = Element Stil Never Msg
+type alias Attrs = List (Attribute Never Msg)
 
-format : Model -> String
-format model =
+
+viewPickDate : { model : Model, label : Maybe String } -> Elem
+viewPickDate arg =
+  let
+    txt = toStr arg.model
+    istValide =
+      case arg.model of
+        DatumStr _ -> False
+        Datum    _ -> True
+    label =
+      case arg.label of
+        Just str -> Input.labelLeft (text str)
+        Nothing -> Input.hiddenLabel ""
+  in
+    Input.text (Stil.TextFeld istValide) []
+      { onChange = Change
+      , value    = txt
+      , label    = label
+      , options  = []
+      }
+
+
+toStr : Model -> String
+toStr model =
   case model of
     DatumStr str -> str
     Datum datum ->
@@ -78,17 +134,60 @@ format model =
         format = String.split "%" "%. % %, %:% Uhr"
       in String.concat <| List.map2 (++) format zahlen
 
-type alias TextInput variation =
-  Stil
-  -> List (Attribute variation Msg)
-  -> Input.Text Stil variation Msg
-  -> Element Stil variation Msg
 
-textInput : TextInput var -> Stil -> Attrs var -> String -> (String -> Msg) -> Elem var
-textInput inputElement stil attrs content onChange =
+type alias TextInput =
+  Stil
+  -> List (Attribute Never Msg)
+  -> Input.Text Stil Never Msg
+  -> Element Stil Never Msg
+
+
+
+-- MISC
+
+textInput : TextInput    -> Stil -> Attrs -> String  -> (String -> Msg) -> Elem
+textInput   inputElement    stil    attrs    content    onChange           =
   inputElement stil attrs
      { onChange = onChange
      , value    = content
      , label    = Input.hiddenLabel ""
      , options  = []
      }
+
+
+nextWeekday : { today : Date, weekday : Date.Day } -> Date
+nextWeekday { today, weekday } =
+  let dayDiffFloat = toFloat <| dayDiff { from = Date.dayOfWeek today, to = weekday }
+  in
+    Date.fromTime <|
+      (Date.toTime <| startOfTheDay { now = today } )
+      +
+      (Time.hour * 24)
+      *
+      dayDiffFloat
+
+
+dayDiff : { from : Date.Day, to : Date.Day } -> Int
+dayDiff { from, to } =
+  (dayToInt to - dayToInt from) % 7
+
+
+dayToInt : Date.Day -> Int
+dayToInt day =
+  case day of
+    Date.Mon -> 0
+    Date.Tue -> 1
+    Date.Wed -> 2
+    Date.Thu -> 3
+    Date.Fri -> 4
+    Date.Sat -> 5
+    Date.Sun -> 6
+
+
+startOfTheDay : { now : Date } -> Date
+startOfTheDay { now } =
+  Date.fromTime <|
+    Date.toTime now
+    - toFloat (Date.hour now) * Time.hour
+    - toFloat (Date.minute now) * Time.minute
+    - toFloat (Date.second now) * Time.second

@@ -45,4 +45,4 @@ herzschlag =
 data Herzschlag = Herzschlag
 instance A.ToJSON Herzschlag where
   toJSON Herzschlag =
-    A.object ["Boom..." .= ("" :: String)]
+    A.object ["Bum..." .= ("" :: String)]

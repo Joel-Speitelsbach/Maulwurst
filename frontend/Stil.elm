@@ -1,14 +1,13 @@
 module Stil exposing (..)
 
 import Color exposing (..)
+import CommonnTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 import Element.Attributes as Attr
 import Style
 import Style.Border as Border
 import Style.Color as Color
 import Style.Font as Font
 import Style.Scale as Scale
-
-import CommonnTypes exposing (Status(Neu,InBearbeitung,Fertig),Bestelltyp(..))
 
 type Stil
   = Big
@@ -21,9 +20,9 @@ type Stil
   | ButtonSmall
   | SortButton
   | HiddenButton
+  | LöschButton
   | TextField
   | TextFeld Bool
-  | LöschButton
   | Stat (Maybe Status)
   | TabelleSpaltenName
   | Btyp Bestelltyp

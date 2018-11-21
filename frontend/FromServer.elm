@@ -114,11 +114,13 @@ decodeBestelltyp =
 
 decodePartyserviceData : Json.Decoder PartyserviceData
 decodePartyserviceData =
-  Json.map4 PartyserviceData
+  Json.map6 PartyserviceData
     (Json.field "_adresse" Json.string)
     (Json.field "_telefon" Json.string)
     (Json.field "_veranstaltungsort" Json.string)
     (Json.field "_personenanzahl" Json.string)
+    (Json.field "_lieferservice" Json.bool)
+    (Json.field "_mitChafingDish" Json.bool)
 
 testJson =
   """
