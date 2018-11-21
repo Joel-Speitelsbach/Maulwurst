@@ -1,4 +1,4 @@
-module Init exposing (..)
+module Init exposing (program)
 
 import Date exposing (Date)
 import Array exposing (Array)
